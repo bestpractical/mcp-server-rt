@@ -2,7 +2,7 @@
   "name": "mcp-server-rt",
   "version": "0.1.0",
   "description": "MCP server for RT (Request Tracker)",
-  "license": "Artistic-2.0",
+  "license": "GPL-2.0",
   "author": "Best Practical Solutions, LLC",
   "homepage": "https://github.com/bestpractical/mcp-server-rt",
   "bin": {
@@ -10,13 +10,16 @@
   },
   "files": [
     "dist",
-    "data"
+    "data",
+    "icon.png",
+    "manifest.json"
   ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pack": "rm -rf /tmp/mcp-server-rt-pack && mkdir /tmp/mcp-server-rt-pack && cp -r dist data manifest.json icon.png package.json /tmp/mcp-server-rt-pack/ && cd /tmp/mcp-server-rt-pack && npm install --omit=dev && cd - && mcpb pack /tmp/mcp-server-rt-pack mcp-server-rt.mcpb"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2"

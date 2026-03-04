@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.js.map
+*.mcpb
 .env
 .mcp.json
 .claude/

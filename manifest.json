@@ -1,0 +1,72 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-server-rt",
+  "display_name": "RT (Request Tracker)",
+  "version": "0.1.0",
+  "description": "MCP server for RT (Request Tracker) — search tickets, manage queues, add comments and replies, and update ticket fields.",
+  "long_description": "Connects Claude to a live RT (Request Tracker) instance via the REST2 API. Supports searching tickets with TicketSQL, reading ticket details and history, creating and updating tickets (including custom fields, custom roles, links, and date fields), adding comments and replies, and looking up queues and users.",
+  "author": {
+    "name": "Best Practical Solutions, LLC",
+    "url": "https://bestpractical.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bestpractical/mcp-server-rt"
+  },
+  "homepage": "https://github.com/bestpractical/mcp-server-rt",
+  "documentation": "https://github.com/bestpractical/mcp-server-rt#readme",
+  "support": "https://github.com/bestpractical/mcp-server-rt/issues",
+  "icon": "icon.png",
+  "license": "GPL-2.0",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "RT_URL": "${user_config.rt_url}",
+        "RT_TOKEN": "${user_config.rt_token}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "search_tickets", "description": "Search for tickets using RT's TicketSQL query language" },
+    { "name": "get_ticket", "description": "Get detailed information about a specific ticket by its ID" },
+    { "name": "get_ticket_history", "description": "Get the transaction history for a ticket" },
+    { "name": "get_transaction", "description": "Get the full details of a single transaction including decoded message content" },
+    { "name": "get_queue", "description": "Get details about a specific queue by ID or name" },
+    { "name": "list_queues", "description": "List all available queues" },
+    { "name": "get_queue_fields", "description": "Get custom field definitions and lifecycle name for a queue" },
+    { "name": "lookup_user", "description": "Search for RT users by name or email address" },
+    { "name": "get_current_user", "description": "Get the RT user account associated with the configured auth token" },
+    { "name": "get_ticketsql_grammar", "description": "Returns the TicketSQL grammar reference for RT 6.0.2" },
+    { "name": "create_ticket", "description": "Create a new ticket in RT" },
+    { "name": "update_ticket", "description": "Update fields on an existing ticket" },
+    { "name": "add_comment", "description": "Add an internal comment to a ticket (not visible to the requestor)" },
+    { "name": "add_reply", "description": "Send a reply (correspondence) on a ticket, visible to the requestor" }
+  ],
+  "keywords": ["rt", "request-tracker", "ticketing", "helpdesk", "bestpractical"],
+  "user_config": {
+    "rt_url": {
+      "type": "string",
+      "title": "RT URL",
+      "description": "The base URL of your RT instance (e.g. https://tickets.example.com)",
+      "required": true
+    },
+    "rt_token": {
+      "type": "string",
+      "title": "RT Auth Token",
+      "description": "RT authentication token. Create one in RT under: Logged in as → Settings → Auth Tokens",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}
