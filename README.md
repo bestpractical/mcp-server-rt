@@ -81,13 +81,15 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 | `search_tickets` | Search tickets using RT's TicketSQL query language |
 | `get_ticket` | Get details for a specific ticket by ID |
 | `get_ticket_history` | Get transaction history (comments, replies, status changes) |
+| `get_transaction` | Get full details of a single transaction, including decoded message content |
 | `get_queue` | Get details about a queue by ID or name |
 | `list_queues` | List all available queues |
-| `lookup_user` | Search for RT users by name or email |
 | `get_queue_fields` | Get custom field definitions and lifecycle name for a queue |
+| `lookup_user` | Search for RT users by name or email |
+| `get_current_user` | Get the RT user associated with the configured auth token |
 | `get_ticketsql_grammar` | Fetch the full TicketSQL grammar reference (for complex queries) |
 | `create_ticket` | Create a new ticket |
-| `update_ticket` | Update ticket fields (status, owner, priority, custom fields, etc.) |
+| `update_ticket` | Update ticket fields (status, owner, priority, dates, watchers, links, custom fields) |
 | `add_comment` | Add an internal comment (not visible to the requestor) |
 | `add_reply` | Send a reply to the requestor |
 

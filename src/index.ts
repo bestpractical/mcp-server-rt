@@ -78,6 +78,20 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'get_transaction',
+    description:
+      'Get the full details of a single transaction including decoded message content. ' +
+      'Use this after get_ticket_history to read the actual text of a reply or comment.',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Transaction ID' },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'get_ticket_history',
     description:
       'Get the transaction history for a ticket. Returns a list of transactions ' +
@@ -112,7 +126,12 @@ const TOOLS: Tool[] = [
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        fields: {
+          type: 'string',
+          description: 'Comma-separated fields to include (default: Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress)',
+        },
+      },
     },
   },
 
@@ -122,6 +141,14 @@ const TOOLS: Tool[] = [
     description:
       'Returns the TicketSQL grammar reference for RT 6.0.2. ' +
       'Use this before constructing complex queries to ensure valid syntax.',
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: 'object', properties: {} },
+  },
+
+  // -- Current user --
+  {
+    name: 'get_current_user',
+    description: 'Get the RT user account associated with the configured auth token. Use this to determine who "I" or "me" refers to when the user asks to assign tickets to themselves, find their own tickets, etc.',
     annotations: { readOnlyHint: true },
     inputSchema: { type: 'object', properties: {} },
   },
@@ -198,6 +225,31 @@ const TOOLS: Tool[] = [
         Owner: { type: 'string', description: 'New owner username' },
         Queue: { type: 'string', description: 'Move to this queue' },
         CustomFields: { type: 'object', description: 'Custom field values to update' },
+        Requestor: { description: 'Requestor username(s) — replaces existing list (string or array of strings)' },
+        Cc: { description: 'Cc username(s) — replaces existing list (string or array of strings)' },
+        AdminCc: { description: 'AdminCc username(s) — replaces existing list (string or array of strings)' },
+        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Told: { type: 'string', description: 'Last Contact datetime, labeled "Told" in RT (format: "YYYY-MM-DD HH:MM:SS")' },
+        RefersTo: { description: 'Set RefersTo links (ticket ID or array of IDs)' },
+        ReferredToBy: { description: 'Set ReferredToBy links (ticket ID or array of IDs)' },
+        DependsOn: { description: 'Set DependsOn links (ticket ID or array of IDs)' },
+        DependedOnBy: { description: 'Set DependedOnBy links (ticket ID or array of IDs)' },
+        Parent: { description: 'Set Parent links (ticket ID or array of IDs)' },
+        Child: { description: 'Set Child links (ticket ID or array of IDs)' },
+        AddRefersTo: { description: 'Add RefersTo links without removing existing ones' },
+        AddReferredToBy: { description: 'Add ReferredToBy links without removing existing ones' },
+        AddDependsOn: { description: 'Add DependsOn links without removing existing ones' },
+        AddDependedOnBy: { description: 'Add DependedOnBy links without removing existing ones' },
+        AddParent: { description: 'Add Parent links without removing existing ones' },
+        AddChild: { description: 'Add Child links without removing existing ones' },
+        DeleteRefersTo: { description: 'Remove specific RefersTo links' },
+        DeleteReferredToBy: { description: 'Remove specific ReferredToBy links' },
+        DeleteDependsOn: { description: 'Remove specific DependsOn links' },
+        DeleteDependedOnBy: { description: 'Remove specific DependedOnBy links' },
+        DeleteParent: { description: 'Remove specific Parent links' },
+        DeleteChild: { description: 'Remove specific Child links' },
       },
       required: ['id'],
     },
@@ -264,6 +316,9 @@ async function callTool(name: string, args: Args): Promise<unknown> {
         fields: args.fields as string | undefined,
       });
 
+    case 'get_transaction':
+      return rt.getTransaction(args.id as number);
+
     case 'get_ticket_history':
       return rt.getTicketHistory(args.id as number, {
         per_page: args.per_page as number | undefined,
@@ -275,10 +330,13 @@ async function callTool(name: string, args: Args): Promise<unknown> {
       return rt.getQueue(args.id as string);
 
     case 'list_queues':
-      return rt.listQueues();
+      return rt.listQueues(args.fields as string | undefined);
 
     case 'get_ticketsql_grammar':
       return readFileSync(join(__dirname, '../data/ticketsql_grammar.md'), 'utf8');
+
+    case 'get_current_user':
+      return rt.getCurrentUser();
 
     case 'lookup_user':
       return rt.lookupUser(args.query as string, {

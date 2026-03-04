@@ -41,6 +41,8 @@ export interface CreateTicketFields {
   CustomFields?: Record<string, unknown>;
 }
 
+type LinkValue = number | number[];
+
 export interface UpdateTicketFields {
   Subject?: string;
   Status?: string;
@@ -48,6 +50,34 @@ export interface UpdateTicketFields {
   Owner?: string;
   Queue?: string;
   CustomFields?: Record<string, unknown>;
+  // Watchers — passing a value replaces the existing list
+  Requestor?: string | string[];
+  Cc?: string | string[];
+  AdminCc?: string | string[];
+  // Date/time fields — use format "YYYY-MM-DD HH:MM:SS" (e.g. "2026-03-06 00:00:00")
+  Due?: string;
+  Starts?: string;
+  Started?: string;
+  Told?: string; // "Last Contact" in the RT UI
+  // Link relationships (set, add, or remove)
+  RefersTo?: LinkValue;
+  ReferredToBy?: LinkValue;
+  DependsOn?: LinkValue;
+  DependedOnBy?: LinkValue;
+  Parent?: LinkValue;
+  Child?: LinkValue;
+  AddRefersTo?: LinkValue;
+  AddReferredToBy?: LinkValue;
+  AddDependsOn?: LinkValue;
+  AddDependedOnBy?: LinkValue;
+  AddParent?: LinkValue;
+  AddChild?: LinkValue;
+  DeleteRefersTo?: LinkValue;
+  DeleteReferredToBy?: LinkValue;
+  DeleteDependsOn?: LinkValue;
+  DeleteDependedOnBy?: LinkValue;
+  DeleteParent?: LinkValue;
+  DeleteChild?: LinkValue;
 }
 
 export interface MessageFields {
@@ -137,11 +167,11 @@ export class RTClient {
   }
 
   ticketComment(id: number, fields: MessageFields): Promise<unknown> {
-    return this.request('POST', `ticket/${id}/comment`, fields);
+    return this.request('POST', `ticket/${id}/comment`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
   }
 
   ticketCorrespond(id: number, fields: MessageFields): Promise<unknown> {
-    return this.request('POST', `ticket/${id}/correspond`, fields);
+    return this.request('POST', `ticket/${id}/correspond`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
   }
 
   // Queue operations
@@ -150,8 +180,53 @@ export class RTClient {
     return this.request('GET', `queue/${idOrName}`);
   }
 
-  listQueues(): Promise<unknown> {
-    return this.request('GET', 'queues/all');
+  listQueues(fields: string | undefined = 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress'): Promise<unknown> {
+    return this.request('GET', 'queues/all', undefined, { fields });
+  }
+
+  // Current user
+
+  async getCurrentUser(): Promise<unknown> {
+    const userId = this.token.split('-')[1];
+    if (!userId || isNaN(Number(userId))) {
+      throw new Error('Could not determine user ID from RT token format');
+    }
+    const user = (await this.request('GET', `user/${userId}`)) as Record<string, unknown>;
+    const keep = ['id', 'Name', 'RealName', 'EmailAddress', 'Organization', 'Lang', 'Timezone', 'Privileged', 'Disabled'];
+    return Object.fromEntries(keep.filter((k) => k in user).map((k) => [k, user[k]]));
+  }
+
+  // Transaction operations
+
+  async getTransaction(id: number): Promise<unknown> {
+    const txn = (await this.request('GET', `transaction/${id}`)) as {
+      _hyperlinks?: Array<{ ref: string; _url: string; id?: number }>;
+      [key: string]: unknown;
+    };
+
+    const attachmentRefs = (txn._hyperlinks ?? [])
+      .filter((l) => l.ref === 'attachment')
+      .map((l) => {
+        const id = l.id ?? Number(l._url.split('/').pop());
+        return isNaN(id) ? null : id;
+      })
+      .filter((id): id is number => id !== null);
+
+    const attachments = await Promise.allSettled(
+      attachmentRefs.map((id) => this.request('GET', `attachment/${id}`)),
+    );
+
+    const decodedAttachments = attachments
+      .filter((r): r is PromiseFulfilledResult<unknown> => r.status === 'fulfilled')
+      .map((r) => {
+        const a = r.value as { ContentType?: string; Content?: string; [key: string]: unknown };
+        if (a.ContentType?.startsWith('text/') && typeof a.Content === 'string') {
+          return { ...a, Content: Buffer.from(a.Content, 'base64').toString('utf8') };
+        }
+        return a;
+      });
+
+    return { ...txn, Attachments: decodedAttachments };
   }
 
   // User operations

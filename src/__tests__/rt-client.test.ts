@@ -121,6 +121,44 @@ describe('RTClient', () => {
     });
   });
 
+  describe('getTransaction', () => {
+    it('fetches transaction and decodes text attachment content', async () => {
+      const encoded = Buffer.from('Hello world').toString('base64');
+      mockFetch
+        .mockReturnValueOnce(mockResponse({
+          id: 99,
+          Type: 'Correspond',
+          _hyperlinks: [{ ref: 'attachment', id: 5, _url: 'http://example.com/attachment/5' }],
+        }))
+        .mockReturnValueOnce(mockResponse({
+          id: 5,
+          ContentType: 'text/plain',
+          Content: encoded,
+        }));
+
+      const result = await client.getTransaction(99) as { Attachments: Array<{ Content: string }> };
+      expect(result.Attachments[0].Content).toBe('Hello world');
+    });
+
+    it('skips decoding for non-text attachments', async () => {
+      const encoded = Buffer.from('binary data').toString('base64');
+      mockFetch
+        .mockReturnValueOnce(mockResponse({
+          id: 99,
+          Type: 'Create',
+          _hyperlinks: [{ ref: 'attachment', id: 6, _url: 'http://example.com/attachment/6' }],
+        }))
+        .mockReturnValueOnce(mockResponse({
+          id: 6,
+          ContentType: 'image/png',
+          Content: encoded,
+        }));
+
+      const result = await client.getTransaction(99) as { Attachments: Array<{ Content: string }> };
+      expect(result.Attachments[0].Content).toBe(encoded);
+    });
+  });
+
   describe('getTicketHistory', () => {
     it('calls the history endpoint', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
@@ -140,6 +178,24 @@ describe('RTClient', () => {
   });
 
   describe('ticketComment', () => {
+    it('defaults ContentType to text/plain when not provided', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await client.ticketComment(7, { Content: 'Internal note' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.ContentType).toBe('text/plain');
+    });
+
+    it('defaults ContentType to text/plain when explicitly undefined', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await client.ticketComment(7, { Content: 'Internal note', ContentType: undefined });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.ContentType).toBe('text/plain');
+    });
+
     it('POSTs to the comment endpoint', async () => {
       mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
       await client.ticketComment(7, { Content: 'Internal note' });
@@ -151,6 +207,24 @@ describe('RTClient', () => {
   });
 
   describe('ticketCorrespond', () => {
+    it('defaults ContentType to text/plain when not provided', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await client.ticketCorrespond(7, { Content: 'Reply to requestor' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.ContentType).toBe('text/plain');
+    });
+
+    it('defaults ContentType to text/plain when explicitly undefined', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await client.ticketCorrespond(7, { Content: 'Reply to requestor', ContentType: undefined });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.ContentType).toBe('text/plain');
+    });
+
     it('POSTs to the correspond endpoint', async () => {
       mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
       await client.ticketCorrespond(7, { Content: 'Reply to requestor' });
@@ -158,6 +232,22 @@ describe('RTClient', () => {
       const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(url).toContain('/REST/2.0/ticket/7/correspond');
       expect(options.method).toBe('POST');
+    });
+  });
+
+  describe('getCurrentUser', () => {
+    it('extracts user ID from token and calls user endpoint', async () => {
+      const clientWithToken = new RTClient('http://rt.example.com', '1-42-abc123');
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 42, Name: 'jsmith' }));
+      await clientWithToken.getCurrentUser();
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/user/42');
+    });
+
+    it('throws if token format is invalid', async () => {
+      const clientBadToken = new RTClient('http://rt.example.com', 'badtoken');
+      await expect(clientBadToken.getCurrentUser()).rejects.toThrow('Could not determine user ID');
     });
   });
 
