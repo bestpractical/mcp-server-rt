@@ -28,20 +28,32 @@ export interface GetTicketOptions {
   fields?: string;
 }
 
+type LinkValue = number | number[] | string | string[];
+
 export interface CreateTicketFields {
   Queue: string;
   Subject: string;
   Content?: string;
   ContentType?: 'text/plain' | 'text/html';
+  Status?: string;
   Priority?: number;
   Owner?: string;
-  Requestor?: string;
-  Cc?: string;
-  AdminCc?: string;
+  Requestor?: string | string[];
+  Cc?: string | string[];
+  AdminCc?: string | string[];
   CustomFields?: Record<string, unknown>;
+  CustomRoles?: Record<string, string | string[]>;
+  Due?: string;
+  Starts?: string;
+  Started?: string;
+  Told?: string;
+  RefersTo?: LinkValue;
+  ReferredToBy?: LinkValue;
+  DependsOn?: LinkValue;
+  DependedOnBy?: LinkValue;
+  Parent?: LinkValue;
+  Child?: LinkValue;
 }
-
-type LinkValue = number | number[];
 
 export interface UpdateTicketFields {
   Subject?: string;
@@ -50,6 +62,7 @@ export interface UpdateTicketFields {
   Owner?: string;
   Queue?: string;
   CustomFields?: Record<string, unknown>;
+  CustomRoles?: Record<string, string | string[]>;
   // Watchers — passing a value replaces the existing list
   Requestor?: string | string[];
   Cc?: string | string[];

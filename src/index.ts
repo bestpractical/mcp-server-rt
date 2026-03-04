@@ -198,15 +198,24 @@ const TOOLS: Tool[] = [
           enum: ['text/plain', 'text/html'],
           description: 'Content MIME type (default text/plain)',
         },
+        Status: { type: 'string', description: 'Initial status' },
         Priority: { type: 'integer', description: 'Ticket priority' },
         Owner: { type: 'string', description: 'Owner username' },
-        Requestor: { type: 'string', description: 'Requestor email address' },
-        Cc: { type: 'string', description: 'Cc email address' },
-        AdminCc: { type: 'string', description: 'AdminCc email address' },
-        CustomFields: {
-          type: 'object',
-          description: 'Custom field values as {CF_name: value}',
-        },
+        Requestor: { description: 'Requestor username(s) (string or array of strings)' },
+        Cc: { description: 'Cc username(s) (string or array of strings)' },
+        AdminCc: { description: 'AdminCc username(s) (string or array of strings)' },
+        CustomFields: { type: 'object', description: 'Custom field values as {CF_name: value}' },
+        CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
+        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Told: { type: 'string', description: 'Last Contact datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        RefersTo: { description: 'RefersTo links (ticket ID, URL, or array)' },
+        ReferredToBy: { description: 'ReferredToBy links (ticket ID, URL, or array)' },
+        DependsOn: { description: 'DependsOn links (ticket ID, URL, or array)' },
+        DependedOnBy: { description: 'DependedOnBy links (ticket ID, URL, or array)' },
+        Parent: { description: 'Parent links (ticket ID, URL, or array)' },
+        Child: { description: 'Child links (ticket ID, URL, or array)' },
       },
       required: ['Queue', 'Subject'],
     },
@@ -225,6 +234,7 @@ const TOOLS: Tool[] = [
         Owner: { type: 'string', description: 'New owner username' },
         Queue: { type: 'string', description: 'Move to this queue' },
         CustomFields: { type: 'object', description: 'Custom field values to update' },
+        CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
         Requestor: { description: 'Requestor username(s) — replaces existing list (string or array of strings)' },
         Cc: { description: 'Cc username(s) — replaces existing list (string or array of strings)' },
         AdminCc: { description: 'AdminCc username(s) — replaces existing list (string or array of strings)' },
@@ -347,19 +357,10 @@ async function callTool(name: string, args: Args): Promise<unknown> {
     case 'get_queue_fields':
       return rt.getQueueFields(args.id as string);
 
-    case 'create_ticket':
-      return rt.createTicket({
-        Queue: args.Queue as string,
-        Subject: args.Subject as string,
-        Content: args.Content as string | undefined,
-        ContentType: args.ContentType as 'text/plain' | 'text/html' | undefined,
-        Priority: args.Priority as number | undefined,
-        Owner: args.Owner as string | undefined,
-        Requestor: args.Requestor as string | undefined,
-        Cc: args.Cc as string | undefined,
-        AdminCc: args.AdminCc as string | undefined,
-        CustomFields: args.CustomFields as Record<string, unknown> | undefined,
-      });
+    case 'create_ticket': {
+      const { Queue, Subject, ...rest } = args;
+      return rt.createTicket({ Queue: Queue as string, Subject: Subject as string, ...rest });
+    }
 
     case 'update_ticket': {
       const { id, ...fields } = args;
