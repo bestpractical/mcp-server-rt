@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.js.map
+.env
+.mcp.json
+.claude/
+CLAUDE.md
