@@ -391,7 +391,13 @@ async function callTool(name: string, args: Args): Promise<unknown> {
 
 const server = new Server(
   { name: 'rt', version },
-  { capabilities: { tools: {} } },
+  {
+    capabilities: { tools: {} },
+    instructions:
+      'When presenting RT tickets to the user, always link to the web UI ' +
+      `(${process.env.RT_URL}/Ticket/Display.html?id=TICKET_ID) rather than ` +
+      'the REST API endpoint (/REST/2.0/ticket/TICKET_ID).',
+  },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));

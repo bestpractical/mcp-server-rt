@@ -119,6 +119,29 @@ export class RTClient {
     };
   }
 
+  // Rewrite REST API ticket URLs to web UI URLs so Claude presents clickable
+  // links like /Ticket/Display.html?id=123 instead of /REST/2.0/ticket/123.
+  private rewriteUrls(data: unknown): unknown {
+    if (typeof data === 'string') {
+      const prefix = `${this.url}/REST/2.0/ticket/`;
+      if (data.startsWith(prefix)) {
+        const rest = data.slice(prefix.length);
+        const id = rest.split('/')[0];
+        if (id && !isNaN(Number(id))) {
+          return `${this.url}/Ticket/Display.html?id=${id}`;
+        }
+      }
+      return data;
+    }
+    if (Array.isArray(data)) return data.map((item) => this.rewriteUrls(item));
+    if (data !== null && typeof data === 'object') {
+      return Object.fromEntries(
+        Object.entries(data as Record<string, unknown>).map(([k, v]) => [k, this.rewriteUrls(v)]),
+      );
+    }
+    return data;
+  }
+
   private async request(
     method: string,
     path: string,
@@ -143,7 +166,7 @@ export class RTClient {
       throw new Error(`${path} failed: ${response.status} ${data.message ?? response.statusText}`);
     }
 
-    return response.json();
+    return this.rewriteUrls(await response.json());
   }
 
   // Ticket operations
