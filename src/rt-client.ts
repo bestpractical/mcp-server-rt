@@ -1,3 +1,41 @@
+import { readFileSync, writeFileSync, statSync } from 'fs';
+import { basename, extname, join } from 'path';
+
+// MIME type lookup for common extensions (used when FileType is not supplied with FilePath)
+const MIME_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+  '.zip': 'application/zip',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+function resolveAttachment(a: AttachmentInput): { FileName: string; FileType: string; FileContent: string } {
+  if (a.FilePath) {
+    const name = a.FileName ?? basename(a.FilePath);
+    const type = a.FileType ?? MIME_TYPES[extname(a.FilePath).toLowerCase()] ?? 'application/octet-stream';
+    const content = readFileSync(a.FilePath).toString('base64');
+    return { FileName: name, FileType: type, FileContent: content };
+  }
+  if (!a.FileContent) throw new Error('AttachmentInput requires either FilePath or FileContent');
+  if (!a.FileName) throw new Error('AttachmentInput requires FileName when using FileContent');
+  if (!a.FileType) throw new Error('AttachmentInput requires FileType when using FileContent');
+  return { FileName: a.FileName, FileType: a.FileType, FileContent: a.FileContent };
+}
+
 export interface SearchOptions {
   orderby?: string;
   order?: 'ASC' | 'DESC';
@@ -35,6 +73,7 @@ export interface CreateTicketFields {
   Subject: string;
   Content?: string;
   ContentType?: 'text/plain' | 'text/html';
+  Attachments?: AttachmentInput[];
   Description?: string;
   Status?: string;
   Priority?: number;
@@ -95,11 +134,19 @@ export interface UpdateTicketFields {
   DeleteChild?: LinkValue;
 }
 
+export interface AttachmentInput {
+  FileName?: string;        // Optional when FilePath is given (defaults to basename)
+  FileType?: string;        // Optional when FilePath is given (auto-detected by extension)
+  FileContent?: string;     // MIME Base64-encoded content — provide this OR FilePath
+  FilePath?: string;        // Absolute path to a local file — server reads and encodes it
+}
+
 export interface MessageFields {
-  Content: string;
+  Content?: string;
   ContentType?: 'text/plain' | 'text/html';
   TimeTaken?: number;
   Status?: string;
+  Attachments?: AttachmentInput[];
 }
 
 export class RTClient {
@@ -189,7 +236,8 @@ export class RTClient {
   }
 
   createTicket(fields: CreateTicketFields): Promise<unknown> {
-    return this.request('POST', 'ticket', fields);
+    const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
+    return this.request('POST', 'ticket', body);
   }
 
   updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
@@ -205,11 +253,60 @@ export class RTClient {
   }
 
   ticketComment(id: number, fields: MessageFields): Promise<unknown> {
-    return this.request('POST', `ticket/${id}/comment`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
+    const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
+    if (body.Content !== undefined && body.ContentType === undefined) body.ContentType = 'text/plain';
+    return this.request('POST', `ticket/${id}/comment`, body);
   }
 
   ticketCorrespond(id: number, fields: MessageFields): Promise<unknown> {
-    return this.request('POST', `ticket/${id}/correspond`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
+    const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
+    if (body.Content !== undefined && body.ContentType === undefined) body.ContentType = 'text/plain';
+    return this.request('POST', `ticket/${id}/correspond`, body);
+  }
+
+  // Attachment operations
+
+  getTicketAttachments(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+    return this.request('GET', `ticket/${id}/attachments`, undefined, {
+      per_page: opts.per_page,
+      page: opts.page,
+    });
+  }
+
+  async getAttachment(id: number): Promise<unknown> {
+    const a = (await this.request('GET', `attachment/${id}`)) as {
+      ContentType?: string;
+      Content?: string;
+      [key: string]: unknown;
+    };
+    if (a.ContentType?.startsWith('text/') && typeof a.Content === 'string') {
+      return { ...a, Content: Buffer.from(a.Content, 'base64').toString('utf8') };
+    }
+    return a;
+  }
+
+  async saveAttachment(id: number, destPath: string): Promise<{ savedTo: string; size: number }> {
+    const a = (await this.request('GET', `attachment/${id}`)) as {
+      Filename?: string;
+      Content?: string;
+      [key: string]: unknown;
+    };
+
+    if (!a.Content) throw new Error(`Attachment ${id} has no content`);
+
+    // If destPath is a directory, append the original filename
+    let outPath = destPath;
+    try {
+      if (statSync(destPath).isDirectory()) {
+        const filename = a.Filename || `attachment-${id}`;
+        outPath = join(destPath, filename);
+      }
+    } catch {
+      // destPath doesn't exist yet — treat it as a full file path
+    }
+
+    writeFileSync(outPath, Buffer.from(a.Content, 'base64'));
+    return { savedTo: outPath, size: statSync(outPath).size };
   }
 
   // Queue operations

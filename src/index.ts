@@ -109,6 +109,50 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'get_ticket_attachments',
+    description: 'List all attachments on a ticket (names, MIME types, sizes, IDs)',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Ticket ID' },
+        per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
+        page: { type: 'integer', description: 'Page number (default 1)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'get_attachment',
+    description:
+      'Retrieve a single attachment by ID. Text content is returned decoded; ' +
+      'binary content is returned as MIME Base64. Use get_ticket_attachments or ' +
+      'get_transaction to find attachment IDs.',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Attachment ID' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'save_attachment',
+    description:
+      'Save an attachment to a local file. The MCP server writes the file directly, ' +
+      'so this works on any platform. If path is a directory, the original filename is used.',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Attachment ID' },
+        path: { type: 'string', description: 'Destination file path or directory' },
+      },
+      required: ['id', 'path'],
+    },
+  },
+  {
     name: 'get_queue',
     description: 'Get details about a specific queue by ID or name',
     annotations: { readOnlyHint: true },
@@ -217,6 +261,19 @@ const TOOLS: Tool[] = [
         DependedOnBy: { description: 'DependedOnBy links (ticket ID, URL, or array)' },
         Parent: { description: 'Parent links (ticket ID, URL, or array)' },
         Child: { description: 'Child links (ticket ID, URL, or array)' },
+        Attachments: {
+          type: 'array',
+          description: 'Files to attach. Provide either FilePath (local file path, server reads and encodes it) or FileContent (pre-encoded MIME Base64). FileName and FileType are optional with FilePath and are inferred from the path.',
+          items: {
+            type: 'object',
+            properties: {
+              FilePath: { type: 'string', description: 'Absolute path to a local file — server reads and encodes it' },
+              FileName: { type: 'string', description: 'File name (defaults to basename of FilePath)' },
+              FileType: { type: 'string', description: 'MIME type (auto-detected from extension when using FilePath)' },
+              FileContent: { type: 'string', description: 'MIME Base64-encoded content (use when FilePath is not available)' },
+            },
+          },
+        },
       },
       required: ['Queue', 'Subject'],
     },
@@ -274,15 +331,28 @@ const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         id: { type: 'integer', description: 'Ticket ID' },
-        Content: { type: 'string', description: 'Comment text' },
+        Content: { type: 'string', description: 'Comment text (optional if Attachments provided)' },
         ContentType: {
           type: 'string',
           enum: ['text/plain', 'text/html'],
           description: 'Content MIME type (default text/plain)',
         },
         TimeTaken: { type: 'integer', description: 'Minutes of work time to log' },
+        Attachments: {
+          type: 'array',
+          description: 'Files to attach. Provide either FilePath (local file path, server reads and encodes it) or FileContent (pre-encoded MIME Base64). FileName and FileType are optional with FilePath and are inferred from the path.',
+          items: {
+            type: 'object',
+            properties: {
+              FilePath: { type: 'string', description: 'Absolute path to a local file — server reads and encodes it' },
+              FileName: { type: 'string', description: 'File name (defaults to basename of FilePath)' },
+              FileType: { type: 'string', description: 'MIME type (auto-detected from extension when using FilePath)' },
+              FileContent: { type: 'string', description: 'MIME Base64-encoded content (use when FilePath is not available)' },
+            },
+          },
+        },
       },
-      required: ['id', 'Content'],
+      required: ['id'],
     },
   },
   {
@@ -293,7 +363,7 @@ const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         id: { type: 'integer', description: 'Ticket ID' },
-        Content: { type: 'string', description: 'Reply text' },
+        Content: { type: 'string', description: 'Reply text (optional if Attachments provided)' },
         ContentType: {
           type: 'string',
           enum: ['text/plain', 'text/html'],
@@ -304,8 +374,21 @@ const TOOLS: Tool[] = [
           type: 'string',
           description: 'Optionally change ticket status (e.g. resolved)',
         },
+        Attachments: {
+          type: 'array',
+          description: 'Files to attach. Provide either FilePath (local file path, server reads and encodes it) or FileContent (pre-encoded MIME Base64). FileName and FileType are optional with FilePath and are inferred from the path.',
+          items: {
+            type: 'object',
+            properties: {
+              FilePath: { type: 'string', description: 'Absolute path to a local file — server reads and encodes it' },
+              FileName: { type: 'string', description: 'File name (defaults to basename of FilePath)' },
+              FileType: { type: 'string', description: 'MIME type (auto-detected from extension when using FilePath)' },
+              FileContent: { type: 'string', description: 'MIME Base64-encoded content (use when FilePath is not available)' },
+            },
+          },
+        },
       },
-      required: ['id', 'Content'],
+      required: ['id'],
     },
   },
 ];
@@ -330,6 +413,18 @@ async function callTool(name: string, args: Args): Promise<unknown> {
 
     case 'get_transaction':
       return rt.getTransaction(args.id as number);
+
+    case 'get_ticket_attachments':
+      return rt.getTicketAttachments(args.id as number, {
+        per_page: args.per_page as number | undefined,
+        page: args.page as number | undefined,
+      });
+
+    case 'get_attachment':
+      return rt.getAttachment(args.id as number);
+
+    case 'save_attachment':
+      return rt.saveAttachment(args.id as number, args.path as string);
 
     case 'get_ticket_history':
       return rt.getTicketHistory(args.id as number, {
@@ -371,17 +466,19 @@ async function callTool(name: string, args: Args): Promise<unknown> {
 
     case 'add_comment':
       return rt.ticketComment(args.id as number, {
-        Content: args.Content as string,
+        Content: args.Content as string | undefined,
         ContentType: args.ContentType as 'text/plain' | 'text/html' | undefined,
         TimeTaken: args.TimeTaken as number | undefined,
+        Attachments: args.Attachments as import('./rt-client.js').AttachmentInput[] | undefined,
       });
 
     case 'add_reply':
       return rt.ticketCorrespond(args.id as number, {
-        Content: args.Content as string,
+        Content: args.Content as string | undefined,
         ContentType: args.ContentType as 'text/plain' | 'text/html' | undefined,
         TimeTaken: args.TimeTaken as number | undefined,
         Status: args.Status as string | undefined,
+        Attachments: args.Attachments as import('./rt-client.js').AttachmentInput[] | undefined,
       });
 
     default:
