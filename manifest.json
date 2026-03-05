@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "mcp-server-rt",
   "display_name": "RT (Request Tracker)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for RT (Request Tracker) — search tickets, manage queues, add comments and replies, and update ticket fields.",
   "long_description": "Connects Claude to a live RT (Request Tracker) instance via the REST2 API. Supports searching tickets with TicketSQL, reading ticket details and history, creating and updating tickets (including custom fields, custom roles, links, and date fields), adding comments and replies, and looking up queues and users.",
   "author": {
@@ -51,7 +51,7 @@
     "rt_url": {
       "type": "string",
       "title": "RT URL",
-      "description": "The base URL of your RT instance (e.g. https://tickets.example.com)",
+      "description": "The base URL of your RT instance (e.g. https://rt.example.com)",
       "required": true
     },
     "rt_token": {
