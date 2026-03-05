@@ -35,6 +35,7 @@ export interface CreateTicketFields {
   Subject: string;
   Content?: string;
   ContentType?: 'text/plain' | 'text/html';
+  Description?: string;
   Status?: string;
   Priority?: number;
   Owner?: string;
@@ -57,6 +58,7 @@ export interface CreateTicketFields {
 
 export interface UpdateTicketFields {
   Subject?: string;
+  Description?: string;
   Status?: string;
   Priority?: number;
   Owner?: string;

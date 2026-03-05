@@ -198,6 +198,7 @@ const TOOLS: Tool[] = [
           enum: ['text/plain', 'text/html'],
           description: 'Content MIME type (default text/plain)',
         },
+        Description: { type: 'string', description: 'Ticket description' },
         Status: { type: 'string', description: 'Initial status' },
         Priority: { type: 'integer', description: 'Ticket priority' },
         Owner: { type: 'string', description: 'Owner username' },
@@ -229,6 +230,7 @@ const TOOLS: Tool[] = [
       properties: {
         id: { type: 'integer', description: 'Ticket ID' },
         Subject: { type: 'string', description: 'New subject' },
+        Description: { type: 'string', description: 'Ticket description' },
         Status: { type: 'string', description: 'New status (e.g. open, resolved, rejected)' },
         Priority: { type: 'integer', description: 'New priority' },
         Owner: { type: 'string', description: 'New owner username' },
