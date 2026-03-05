@@ -1,0 +1,281 @@
+export interface SearchOptions {
+  orderby?: string;
+  order?: 'ASC' | 'DESC';
+  per_page?: number;
+  page?: number;
+  fields?: string;
+}
+
+export interface HistoryOptions {
+  per_page?: number;
+  page?: number;
+  fields?: string;
+}
+
+export interface UserSearchOptions {
+  per_page?: number;
+  page?: number;
+}
+
+export interface QueueFieldsResult {
+  id: number;
+  Name: string;
+  Lifecycle: string;
+  CustomFields: unknown[];
+}
+
+export interface GetTicketOptions {
+  fields?: string;
+}
+
+type LinkValue = number | number[] | string | string[];
+
+export interface CreateTicketFields {
+  Queue: string;
+  Subject: string;
+  Content?: string;
+  ContentType?: 'text/plain' | 'text/html';
+  Status?: string;
+  Priority?: number;
+  Owner?: string;
+  Requestor?: string | string[];
+  Cc?: string | string[];
+  AdminCc?: string | string[];
+  CustomFields?: Record<string, unknown>;
+  CustomRoles?: Record<string, string | string[]>;
+  Due?: string;
+  Starts?: string;
+  Started?: string;
+  Told?: string;
+  RefersTo?: LinkValue;
+  ReferredToBy?: LinkValue;
+  DependsOn?: LinkValue;
+  DependedOnBy?: LinkValue;
+  Parent?: LinkValue;
+  Child?: LinkValue;
+}
+
+export interface UpdateTicketFields {
+  Subject?: string;
+  Status?: string;
+  Priority?: number;
+  Owner?: string;
+  Queue?: string;
+  CustomFields?: Record<string, unknown>;
+  CustomRoles?: Record<string, string | string[]>;
+  // Watchers — passing a value replaces the existing list
+  Requestor?: string | string[];
+  Cc?: string | string[];
+  AdminCc?: string | string[];
+  // Date/time fields — use format "YYYY-MM-DD HH:MM:SS" (e.g. "2026-03-06 00:00:00")
+  Due?: string;
+  Starts?: string;
+  Started?: string;
+  Told?: string; // "Last Contact" in the RT UI
+  // Link relationships (set, add, or remove)
+  RefersTo?: LinkValue;
+  ReferredToBy?: LinkValue;
+  DependsOn?: LinkValue;
+  DependedOnBy?: LinkValue;
+  Parent?: LinkValue;
+  Child?: LinkValue;
+  AddRefersTo?: LinkValue;
+  AddReferredToBy?: LinkValue;
+  AddDependsOn?: LinkValue;
+  AddDependedOnBy?: LinkValue;
+  AddParent?: LinkValue;
+  AddChild?: LinkValue;
+  DeleteRefersTo?: LinkValue;
+  DeleteReferredToBy?: LinkValue;
+  DeleteDependsOn?: LinkValue;
+  DeleteDependedOnBy?: LinkValue;
+  DeleteParent?: LinkValue;
+  DeleteChild?: LinkValue;
+}
+
+export interface MessageFields {
+  Content: string;
+  ContentType?: 'text/plain' | 'text/html';
+  TimeTaken?: number;
+  Status?: string;
+}
+
+export class RTClient {
+  private url: string;
+  private token: string;
+
+  constructor(url: string, token: string) {
+    this.url = url.replace(/\/$/, '');
+    this.token = token;
+  }
+
+  private headers(): Record<string, string> {
+    return {
+      Authorization: `token ${this.token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+  }
+
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    params?: Record<string, string | number | undefined>,
+  ): Promise<unknown> {
+    const url = new URL(`${this.url}/REST/2.0/${path}`);
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) url.searchParams.set(key, String(value));
+      }
+    }
+
+    const response = await fetch(url.toString(), {
+      method,
+      headers: this.headers(),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      throw new Error(`${path} failed: ${response.status} ${data.message ?? response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Ticket operations
+
+  searchTickets(query: string, opts: SearchOptions = {}): Promise<unknown> {
+    return this.request('GET', 'tickets', undefined, {
+      query,
+      orderby: opts.orderby,
+      order: opts.order,
+      per_page: opts.per_page,
+      page: opts.page,
+      fields: opts.fields,
+    });
+  }
+
+  getTicket(id: number, opts: GetTicketOptions = {}): Promise<unknown> {
+    return this.request('GET', `ticket/${id}`, undefined, {
+      fields: opts.fields,
+    });
+  }
+
+  createTicket(fields: CreateTicketFields): Promise<unknown> {
+    return this.request('POST', 'ticket', fields);
+  }
+
+  updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
+    return this.request('PUT', `ticket/${id}`, fields);
+  }
+
+  getTicketHistory(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+    return this.request('GET', `ticket/${id}/history`, undefined, {
+      per_page: opts.per_page,
+      page: opts.page,
+      fields: opts.fields,
+    });
+  }
+
+  ticketComment(id: number, fields: MessageFields): Promise<unknown> {
+    return this.request('POST', `ticket/${id}/comment`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
+  }
+
+  ticketCorrespond(id: number, fields: MessageFields): Promise<unknown> {
+    return this.request('POST', `ticket/${id}/correspond`, { ...fields, ContentType: fields.ContentType ?? 'text/plain' });
+  }
+
+  // Queue operations
+
+  getQueue(idOrName: string): Promise<unknown> {
+    return this.request('GET', `queue/${idOrName}`);
+  }
+
+  listQueues(fields: string | undefined = 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress'): Promise<unknown> {
+    return this.request('GET', 'queues/all', undefined, { fields });
+  }
+
+  // Current user
+
+  async getCurrentUser(): Promise<unknown> {
+    const userId = this.token.split('-')[1];
+    if (!userId || isNaN(Number(userId))) {
+      throw new Error('Could not determine user ID from RT token format');
+    }
+    const user = (await this.request('GET', `user/${userId}`)) as Record<string, unknown>;
+    const keep = ['id', 'Name', 'RealName', 'EmailAddress', 'Organization', 'Lang', 'Timezone', 'Privileged', 'Disabled'];
+    return Object.fromEntries(keep.filter((k) => k in user).map((k) => [k, user[k]]));
+  }
+
+  // Transaction operations
+
+  async getTransaction(id: number): Promise<unknown> {
+    const txn = (await this.request('GET', `transaction/${id}`)) as {
+      _hyperlinks?: Array<{ ref: string; _url: string; id?: number }>;
+      [key: string]: unknown;
+    };
+
+    const attachmentRefs = (txn._hyperlinks ?? [])
+      .filter((l) => l.ref === 'attachment')
+      .map((l) => {
+        const id = l.id ?? Number(l._url.split('/').pop());
+        return isNaN(id) ? null : id;
+      })
+      .filter((id): id is number => id !== null);
+
+    const attachments = await Promise.allSettled(
+      attachmentRefs.map((id) => this.request('GET', `attachment/${id}`)),
+    );
+
+    const decodedAttachments = attachments
+      .filter((r): r is PromiseFulfilledResult<unknown> => r.status === 'fulfilled')
+      .map((r) => {
+        const a = r.value as { ContentType?: string; Content?: string; [key: string]: unknown };
+        if (a.ContentType?.startsWith('text/') && typeof a.Content === 'string') {
+          return { ...a, Content: Buffer.from(a.Content, 'base64').toString('utf8') };
+        }
+        return a;
+      });
+
+    return { ...txn, Attachments: decodedAttachments };
+  }
+
+  // User operations
+
+  lookupUser(query: string, opts: UserSearchOptions = {}): Promise<unknown> {
+    const queryArray = [
+      { field: 'Name', operator: 'LIKE', value: query },
+      { field: 'EmailAddress', operator: 'LIKE', value: query, entry_aggregator: 'OR' },
+    ];
+    return this.request('POST', 'users', queryArray, {
+      per_page: opts.per_page,
+      page: opts.page,
+    });
+  }
+
+  async getQueueFields(idOrName: string): Promise<QueueFieldsResult> {
+    const queue = (await this.request('GET', `queue/${idOrName}`)) as {
+      id: number;
+      Name: string;
+      Lifecycle: string;
+      TicketCustomFields?: Array<{ id: number; _url?: string }>;
+    };
+
+    const cfRefs = queue.TicketCustomFields ?? [];
+    const results = await Promise.allSettled(
+      cfRefs.map((cf) => this.request('GET', `customfield/${cf.id}`)),
+    );
+    const customFields = results
+      .filter((r): r is PromiseFulfilledResult<unknown> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    return {
+      id: queue.id,
+      Name: queue.Name,
+      Lifecycle: queue.Lifecycle,
+      CustomFields: customFields,
+    };
+  }
+}
