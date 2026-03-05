@@ -5,6 +5,8 @@
 - Node.js >= 18
 - `@anthropic-ai/mcpb` CLI installed globally: `npm install -g @anthropic-ai/mcpb`
 
+> **Note:** The build and pack scripts require macOS or Linux. The server itself runs on Windows, macOS, and Linux — Windows users should install the pre-built `.mcpb` from the releases page rather than building from source.
+
 ## Quick build
 
 ```bash

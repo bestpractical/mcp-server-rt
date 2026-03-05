@@ -2,6 +2,15 @@
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that connects AI assistants to a live [RT (Request Tracker)](https://bestpractical.com/request-tracker) instance. Search tickets, view history, create and update tickets — all from a natural language conversation.
 
+## Features
+
+- **Search tickets** using RT's full TicketSQL query language
+- **Read ticket details** including full transaction history
+- **Create tickets** setting initial content and all ticket metadata: status, owner, requestors, due dates, custom fields, custom roles, and links
+- **Update tickets** reply, comment, and update tickets, with the same full field support
+- **Queue and user discovery** — list queues, inspect custom field definitions, look up users by name or email
+- **TicketSQL grammar reference** — the AI can consult the full RT 6.0.2 syntax guide before constructing complex queries
+
 ## Requirements
 
 - RT 6.0 or later with REST 2.0 API enabled (included by default)
@@ -22,15 +31,21 @@ In RT: **Logged in as → Settings → Auth Tokens → Create**
 
 Give the token a name (e.g. "Claude") and copy the generated token string.
 
+The token is associated with the user account, so all operations in RT from Claude using that token will be logged as performed by that user. So everything you do via Claude still gets logged in RT as you, including emails sent on comments and replies.
+
+Users need to be granted the right ManageAuthTokens to see the Auth Tokens menu.
+
 ---
 
 ## AI Client Setup
 
 MCP is an open standard — this server works with any MCP-compatible AI client. Configuration varies by client.
 
-### Claude Code ✓ (tested)
+### Claude Desktop ✓ (tested)
 
-Add to `.mcp.json` in your project root:
+Install the `.mcpb` extension package from the [releases page](https://github.com/bestpractical/mcp-server-rt/releases). In the Claude app, go to **Customize → Connectors**, find RT, and enter your RT URL and auth token.
+
+Alternatively, add manually to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
@@ -48,9 +63,9 @@ Add to `.mcp.json` in your project root:
 }
 ```
 
-### Claude Desktop ✓ (tested)
+### Claude Code ✓ (tested)
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+Add to `.mcp.json` in your project root:
 
 ```json
 {
@@ -93,14 +108,59 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 | `add_comment` | Add an internal comment (not visible to the requestor) |
 | `add_reply` | Send a reply to the requestor |
 
-## Example Conversations
+---
 
-- "Show me open tickets in the General queue assigned to nobody"
-- "What tickets did root@localhost open in the last 30 days?"
-- "Add a comment to ticket 42 saying the issue is under investigation"
-- "Resolve ticket 15 and reply to the requestor that it's been fixed"
-- "What custom fields does the General queue have?"
-- "Find all tickets with the Category custom field set to 'Bug'"
+## Usage Examples
+
+### Example 1: Finding and triaging unowned tickets
+
+**User:** "Show me active tickets in the Support queue with no owner."
+
+**Claude calls:** `search_tickets` with query `Queue = 'Support' AND Status = '__Active__' AND Owner = 'Nobody'`, requesting Subject, Status, Created, and Requestor fields.
+
+**Result:** A table of unowned active tickets with subject, age, and requestor, ready to assign or act on.
+
+---
+
+### Example 2: Reading recent correspondence on a ticket
+
+**User:** "Show me the most recent reply on ticket 1234."
+
+**Claude calls:** `get_ticket_history` to get the list of transactions, identifies the most recent `Correspond` entry, then calls `get_transaction` to fetch and decode the full message content.
+
+**Result:** The decoded text of the reply, including who sent it and when.
+
+---
+
+### Example 3: Creating a fully configured ticket
+
+**User:** "Create a ticket in the Projects queue titled 'Update onboarding docs', assign it to alice, set the due date to next Friday, and link it to ticket 500."
+
+**Claude calls:** `create_ticket` with Queue, Subject, Owner, Due, and RefersTo all set in a single API call.
+
+**Result:** New ticket created with all fields set. Claude confirms the ticket number and a summary of what was set.
+
+---
+
+### Example 4: Updating ticket status with a reply
+
+**User:** "Resolve ticket 789 and let the requestor know we've pushed a fix in version 6.0.3."
+
+**Claude calls:** `add_reply` with the message content and `Status: 'resolved'` to close the ticket and notify the requestor in one step.
+
+**Result:** Ticket resolved, requestor notified. Claude confirms both actions completed.
+
+---
+
+### Example 5: Querying with custom fields
+
+**User:** "Find all open tickets in the General queue where the Category field is set to 'Bug'."
+
+**Claude calls:** `get_queue_fields` to confirm the exact custom field name, then `search_tickets` with `Queue = 'General' AND Status = '__Active__' AND CF.{Category} = 'Bug'`.
+
+**Result:** A list of matching bug tickets with subject, owner, and creation date.
+
+---
 
 ## How It Works
 
@@ -135,6 +195,20 @@ RT_URL=https://rt.example.com RT_TOKEN=your-token node dist/index.js
 - RT 6.0+ (REST 2.0 API)
 - Node.js 18+
 
+## Privacy
+
+This server does not collect, store, or transmit any data to Best Practical or any third party. All communication is directly between your AI client and your own RT instance using the URL and credentials you provide. No usage data, ticket content, or credentials are sent anywhere other than your configured RT server.
+
+See the [Best Practical Privacy Policy](https://requesttracker.com/privacy-policy/) for general information about our privacy practices.
+
+## Support
+
+For questions and discussion, visit the [Best Practical Community Forum](https://forum.bestpractical.com).
+
+To report a bug, create a ticket on our [public RT instance](https://rt.bestpractical.com). Note that this is a public RT instance, so the information you share will be visible to others.
+
+Is RT mission critical for you? Commercial support for RT and this connector is available from Best Practical. Contact us at [sales@bestpractical.com](mailto:sales@bestpractical.com).
+
 ## License
 
-Artistic License 2.0
+GPL-2.0

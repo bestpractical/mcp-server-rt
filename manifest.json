@@ -15,7 +15,7 @@
   },
   "homepage": "https://github.com/bestpractical/mcp-server-rt",
   "documentation": "https://github.com/bestpractical/mcp-server-rt#readme",
-  "support": "https://github.com/bestpractical/mcp-server-rt/issues",
+  "support": "https://rt.bestpractical.com",
   "icon": "icon.png",
   "license": "GPL-2.0",
   "server": {
@@ -62,6 +62,9 @@
       "required": true
     }
   },
+  "privacy_policies": [
+    "https://requesttracker.com/privacy-policy/"
+  ],
   "compatibility": {
     "claude_desktop": ">=0.10.0",
     "platforms": ["darwin", "win32", "linux"],
