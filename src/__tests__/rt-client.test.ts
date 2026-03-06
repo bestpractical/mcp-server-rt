@@ -108,6 +108,25 @@ describe('RTClient', () => {
         Subject: 'Test',
       });
     });
+
+    it('converts date fields from local time to UTC', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.createTicket({ Queue: 'General', Subject: 'Test', Due: '2026-03-09 00:00:00' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      // Tests run with TZ=UTC, so local time == UTC; exact value should be preserved
+      expect(body.Due).toBe('2026-03-09 00:00:00');
+    });
+
+    it('leaves non-date fields unchanged', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.createTicket({ Queue: 'General', Subject: 'Test', Owner: 'alice' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.Owner).toBe('alice');
+    });
   });
 
   describe('updateTicket', () => {
@@ -118,6 +137,16 @@ describe('RTClient', () => {
       const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(url).toContain('/REST/2.0/ticket/7');
       expect(options.method).toBe('PUT');
+    });
+
+    it('converts date fields from local time to UTC', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Due date changed']));
+      await client.updateTicket(7, { Due: '2026-03-09 00:00:00' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      // Tests run with TZ=UTC, so local time == UTC; exact value should be preserved
+      expect(body.Due).toBe('2026-03-09 00:00:00');
     });
   });
 
@@ -332,6 +361,80 @@ describe('RTClient', () => {
 
       const result = await client.getQueueFields('Empty') as { CustomFields: unknown[] };
       expect(result.CustomFields).toHaveLength(0);
+    });
+  });
+
+  describe('URL rewriting', () => {
+    it('rewrites REST ticket URLs to web UI URLs in responses', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({
+        id: 42,
+        _hyperlinks: [
+          { ref: 'self', _url: 'http://rt.example.com/REST/2.0/ticket/42' },
+          { ref: 'history', _url: 'http://rt.example.com/REST/2.0/ticket/42/history' },
+        ],
+      }));
+
+      const result = await client.getTicket(42) as { _hyperlinks: Array<{ _url: string }> };
+      expect(result._hyperlinks[0]._url).toBe('http://rt.example.com/Ticket/Display.html?id=42');
+    });
+
+    it('does not rewrite non-ticket REST URLs', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({
+        id: 42,
+        _hyperlinks: [
+          { ref: 'attachment', _url: 'http://rt.example.com/REST/2.0/attachment/5' },
+          { ref: 'queue', _url: 'http://rt.example.com/REST/2.0/queue/1' },
+        ],
+      }));
+
+      const result = await client.getTicket(42) as { _hyperlinks: Array<{ _url: string }> };
+      expect(result._hyperlinks[0]._url).toBe('http://rt.example.com/REST/2.0/attachment/5');
+      expect(result._hyperlinks[1]._url).toBe('http://rt.example.com/REST/2.0/queue/1');
+    });
+
+    it('rewrites ticket URLs nested inside search results', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({
+        count: 1,
+        items: [
+          { id: 7, _url: 'http://rt.example.com/REST/2.0/ticket/7', Subject: 'Test' },
+        ],
+      }));
+
+      const result = await client.searchTickets('id = 7') as {
+        items: Array<{ _url: string }>;
+      };
+      expect(result.items[0]._url).toBe('http://rt.example.com/Ticket/Display.html?id=7');
+    });
+
+    it('does not rewrite URLs from a different host', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({
+        id: 42,
+        _hyperlinks: [{ ref: 'self', _url: 'http://other.example.com/REST/2.0/ticket/42' }],
+      }));
+
+      const result = await client.getTicket(42) as { _hyperlinks: Array<{ _url: string }> };
+      expect(result._hyperlinks[0]._url).toBe('http://other.example.com/REST/2.0/ticket/42');
+    });
+
+    it('preserves attachment ID extraction in getTransaction after rewriting', async () => {
+      const encoded = Buffer.from('Hello').toString('base64');
+      mockFetch
+        .mockReturnValueOnce(mockResponse({
+          id: 99,
+          Type: 'Correspond',
+          _hyperlinks: [
+            { ref: 'attachment', id: 5, _url: 'http://rt.example.com/REST/2.0/attachment/5' },
+          ],
+        }))
+        .mockReturnValueOnce(mockResponse({
+          id: 5,
+          ContentType: 'text/plain',
+          Content: encoded,
+        }));
+
+      const result = await client.getTransaction(99) as { Attachments: Array<{ Content: string }> };
+      expect(result.Attachments).toHaveLength(1);
+      expect(result.Attachments[0].Content).toBe('Hello');
     });
   });
 
