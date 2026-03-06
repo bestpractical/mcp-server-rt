@@ -13,6 +13,8 @@
 - Date fields (Due, Starts, Started, Told) are automatically converted from the user's local timezone to UTC.
 - AI guidance for TicketSQL: `search_tickets` and `get_ticketsql_grammar` now steer the AI to consult the grammar reference before writing queries, with explicit callout of `__Active__`/`__Inactive__` meta-values.
 - AI guidance for search result display: default field set and adaptive one- or two-line display format.
+- `search_tickets` and `get_ticket` now support a `subfields` parameter to expand object fields (e.g. Queue, Owner) inline with human-readable names instead of object stubs.
+- AI instructions corrected to use `RefersTo = 'TICKET_ID'` (not `ticket/TICKET_ID`) in TicketSQL when searching for linked tickets such as reminders.
 
 ## [0.1.1] - 2024-11-18
 
