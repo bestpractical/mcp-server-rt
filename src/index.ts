@@ -50,7 +50,12 @@ const TOOLS: Tool[] = [
     name: 'search_tickets',
     description:
       "Search for tickets using RT's TicketSQL query language. " +
-      "Example queries: \"Status = 'open'\", \"Queue = 'General' AND Owner = 'Nobody'\", \"Subject LIKE 'login'\"",
+      'TicketSQL has non-obvious syntax — consult get_ticketsql_grammar before writing any query ' +
+      'involving Status, date conditions, custom fields, or special values. ' +
+      'Key syntax notes: Status has meta-values __Active__ and __Inactive__ that match all active/inactive ' +
+      'statuses across lifecycles (e.g. Status = \'__Active__\' rather than Status = \'open\'). ' +
+      "Basic examples: \"Queue = 'General' AND Owner = 'Nobody'\", \"Subject LIKE 'login'\". " +
+      'Always include fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -185,7 +190,8 @@ const TOOLS: Tool[] = [
     name: 'get_ticketsql_grammar',
     description:
       'Returns the TicketSQL grammar reference for RT 6.0.2. ' +
-      'Use this before constructing complex queries to ensure valid syntax.',
+      'Consult this before writing any TicketSQL query — especially for Status conditions, ' +
+      'date/time fields, custom fields, and link fields where syntax is non-obvious.',
     annotations: { readOnlyHint: true },
     inputSchema: { type: 'object', properties: {} },
   },
@@ -499,6 +505,12 @@ const server = new Server(
       'the REST API endpoint (/REST/2.0/ticket/TICKET_ID). ' +
       `The user's local timezone is ${timezone}. When setting date fields (Due, Starts, Started, Told), ` +
       'always provide dates in the user\'s local time — the server converts them to UTC automatically.\n\n' +
+      'TICKET DISPLAY: When presenting search results, always request ' +
+      'fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set ' +
+      '(e.g. add TimeLeft when SLA is relevant, drop Requestor for personal task searches). ' +
+      'Present ticket results on one line if it fits on the current display. ' +
+      'Use a two-row display if needed to show all of the requested ticket fields. ' +
+      'Omit empty or unset fields rather than showing blank values.\n\n' +
       'REMINDERS: Reminders are tickets with Type = \'reminder\'. They are mini-tasks linked to a parent ticket ' +
       'via a RefersTo relationship and are displayed in the context of that parent ticket in the RT UI. ' +
       'Reminders have an Owner field — "set a reminder" means setting one for the current user. ' +
