@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "mcp-server-rt",
   "display_name": "RT (Request Tracker)",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MCP server for RT (Request Tracker) — search tickets, manage queues, add comments and replies, and update ticket fields.",
   "long_description": "Connects Claude to a live RT (Request Tracker) instance via the REST2 API. Supports searching tickets with TicketSQL, reading ticket details and history, creating and updating tickets (including custom fields, custom roles, links, and date fields), adding comments and replies, and looking up queues and users.",
   "author": {
@@ -44,7 +44,10 @@
     { "name": "create_ticket", "description": "Create a new ticket in RT" },
     { "name": "update_ticket", "description": "Update fields on an existing ticket" },
     { "name": "add_comment", "description": "Add an internal comment to a ticket (not visible to the requestor)" },
-    { "name": "add_reply", "description": "Send a reply (correspondence) on a ticket, visible to the requestor" }
+    { "name": "add_reply", "description": "Send a reply (correspondence) on a ticket, visible to the requestor" },
+    { "name": "get_ticket_attachments", "description": "List all attachments on a ticket" },
+    { "name": "get_attachment", "description": "Retrieve a single attachment by ID" },
+    { "name": "save_attachment", "description": "Save an attachment to a local file" }
   ],
   "keywords": ["rt", "request-tracker", "ticketing", "helpdesk", "bestpractical"],
   "user_config": {
