@@ -42,6 +42,7 @@ export interface SearchOptions {
   per_page?: number;
   page?: number;
   fields?: string;
+  subfields?: Record<string, string>;
 }
 
 export interface HistoryOptions {
@@ -64,6 +65,7 @@ export interface QueueFieldsResult {
 
 export interface GetTicketOptions {
   fields?: string;
+  subfields?: Record<string, string>;
 }
 
 type LinkValue = number | number[] | string | string[];
@@ -218,11 +220,17 @@ export class RTClient {
     path: string,
     body?: unknown,
     params?: Record<string, string | number | undefined>,
+    subfields?: Record<string, string>,
   ): Promise<unknown> {
     const url = new URL(`${this.url}/REST/2.0/${path}`);
     if (params) {
       for (const [key, value] of Object.entries(params)) {
         if (value !== undefined) url.searchParams.set(key, String(value));
+      }
+    }
+    if (subfields) {
+      for (const [key, value] of Object.entries(subfields)) {
+        url.searchParams.set(`fields[${key}]`, value);
       }
     }
 
@@ -250,13 +258,13 @@ export class RTClient {
       per_page: opts.per_page,
       page: opts.page,
       fields: opts.fields,
-    });
+    }, opts.subfields);
   }
 
   getTicket(id: number, opts: GetTicketOptions = {}): Promise<unknown> {
     return this.request('GET', `ticket/${id}`, undefined, {
       fields: opts.fields,
-    });
+    }, opts.subfields);
   }
 
   createTicket(fields: CreateTicketFields): Promise<unknown> {

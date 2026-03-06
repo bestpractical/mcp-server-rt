@@ -66,6 +66,7 @@ const TOOLS: Tool[] = [
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
         fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
+        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}' },
       },
       required: ['query'],
     },
@@ -79,6 +80,7 @@ const TOOLS: Tool[] = [
       properties: {
         id: { type: 'integer', description: 'Ticket ID' },
         fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
+        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}' },
       },
       required: ['id'],
     },
@@ -413,11 +415,13 @@ async function callTool(name: string, args: Args): Promise<unknown> {
         per_page: args.per_page as number | undefined,
         page: args.page as number | undefined,
         fields: args.fields as string | undefined,
+        subfields: args.subfields as Record<string, string> | undefined,
       });
 
     case 'get_ticket':
       return rt.getTicket(args.id as number, {
         fields: args.fields as string | undefined,
+        subfields: args.subfields as Record<string, string> | undefined,
       });
 
     case 'get_transaction':
@@ -508,6 +512,7 @@ const server = new Server(
       'TICKET DISPLAY: When presenting search results, always request ' +
       'fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set ' +
       '(e.g. add TimeLeft when SLA is relevant, drop Requestor for personal task searches). ' +
+      'Always include subfields={"Queue":"Name","Owner":"Name"} to get human-readable names instead of object stubs. ' +
       'Present ticket results on one line if it fits on the current display. ' +
       'Use a two-row display if needed to show all of the requested ticket fields. ' +
       'Omit empty or unset fields rather than showing blank values.\n\n' +
@@ -517,7 +522,7 @@ const server = new Server(
       'Always default the Owner of new reminders to the current user (use get_current_user) unless the user explicitly says otherwise. ' +
       'When searching for reminders, always scope to Owner = current user by default unless the user asks for reminders belonging to someone else.\n' +
       'To find reminders for a specific ticket, use search_tickets with TicketSQL: ' +
-      '`Type = \'reminder\' AND RefersTo = \'ticket/TICKET_ID\' AND Owner = \'USERNAME\'`.\n' +
+      '`Type = \'reminder\' AND RefersTo = \'TICKET_ID\' AND Owner = \'USERNAME\'`.\n' +
       'Always link a new reminder to a parent ticket via RefersTo. If the context does not make clear which ticket to link to, ask the user before creating.\n' +
       'Reminders have exactly two states: active and inactive. ' +
       'By default the active status is "open" and the inactive status is "resolved", ' +
