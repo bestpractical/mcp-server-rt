@@ -71,6 +71,7 @@ type LinkValue = number | number[] | string | string[];
 export interface CreateTicketFields {
   Queue: string;
   Subject: string;
+  Type?: string;
   Content?: string;
   ContentType?: 'text/plain' | 'text/html';
   Attachments?: AttachmentInput[];
@@ -97,6 +98,7 @@ export interface CreateTicketFields {
 
 export interface UpdateTicketFields {
   Subject?: string;
+  Type?: string;
   Description?: string;
   Status?: string;
   Priority?: number;
