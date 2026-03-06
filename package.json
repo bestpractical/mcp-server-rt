@@ -17,8 +17,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "TZ=UTC vitest run",
+    "test:watch": "TZ=UTC vitest",
     "pack": "rm -rf /tmp/mcp-server-rt-pack && mkdir /tmp/mcp-server-rt-pack && cp -r dist data manifest.json icon.png package.json /tmp/mcp-server-rt-pack/ && cd /tmp/mcp-server-rt-pack && npm install --omit=dev && cd - && mcpb pack /tmp/mcp-server-rt-pack mcp-server-rt.mcpb"
   },
   "dependencies": {

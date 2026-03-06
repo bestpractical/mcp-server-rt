@@ -42,6 +42,7 @@ function validateEnv(): void {
 validateEnv();
 
 const rt = new RTClient(process.env.RT_URL!, process.env.RT_TOKEN!);
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const TOOLS: Tool[] = [
   // -- Read-only tools --
@@ -251,10 +252,10 @@ const TOOLS: Tool[] = [
         AdminCc: { description: 'AdminCc username(s) (string or array of strings)' },
         CustomFields: { type: 'object', description: 'Custom field values as {CF_name: value}' },
         CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
-        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Told: { type: 'string', description: 'Last Contact datetime (format: "YYYY-MM-DD HH:MM:SS")' },
+        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Told: { type: 'string', description: 'Last Contact datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
         RefersTo: { description: 'RefersTo links (ticket ID, URL, or array)' },
         ReferredToBy: { description: 'ReferredToBy links (ticket ID, URL, or array)' },
         DependsOn: { description: 'DependsOn links (ticket ID, URL, or array)' },
@@ -297,10 +298,10 @@ const TOOLS: Tool[] = [
         Requestor: { description: 'Requestor username(s) — replaces existing list (string or array of strings)' },
         Cc: { description: 'Cc username(s) — replaces existing list (string or array of strings)' },
         AdminCc: { description: 'AdminCc username(s) — replaces existing list (string or array of strings)' },
-        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS")' },
-        Told: { type: 'string', description: 'Last Contact datetime, labeled "Told" in RT (format: "YYYY-MM-DD HH:MM:SS")' },
+        Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Started: { type: 'string', description: 'Started datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
+        Told: { type: 'string', description: 'Last Contact datetime, labeled "Told" in RT (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
         RefersTo: { description: 'Set RefersTo links (ticket ID or array of IDs)' },
         ReferredToBy: { description: 'Set ReferredToBy links (ticket ID or array of IDs)' },
         DependsOn: { description: 'Set DependsOn links (ticket ID or array of IDs)' },
@@ -493,7 +494,9 @@ const server = new Server(
     instructions:
       'When presenting RT tickets to the user, always link to the web UI ' +
       `(${process.env.RT_URL}/Ticket/Display.html?id=TICKET_ID) rather than ` +
-      'the REST API endpoint (/REST/2.0/ticket/TICKET_ID).',
+      'the REST API endpoint (/REST/2.0/ticket/TICKET_ID). ' +
+      `The user's local timezone is ${timezone}. When setting date fields (Due, Starts, Started, Told), ` +
+      'always provide dates in the user\'s local time — the server converts them to UTC automatically.',
   },
 );
 

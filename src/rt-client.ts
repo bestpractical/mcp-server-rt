@@ -149,6 +149,28 @@ export interface MessageFields {
   Attachments?: AttachmentInput[];
 }
 
+// Date fields that should be converted from local time to UTC before sending to RT
+const DATE_FIELDS = new Set(['Due', 'Starts', 'Started', 'Told']);
+
+// Convert a local datetime string ("YYYY-MM-DD HH:MM:SS") to UTC.
+// JavaScript parses "YYYY-MM-DDThh:mm:ss" (no Z) as local time, so we can
+// round-trip through Date to get the UTC equivalent.
+function localToUTC(dateStr: string): string {
+  const d = new Date(dateStr.replace(' ', 'T'));
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function convertDates(fields: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...fields };
+  for (const key of DATE_FIELDS) {
+    if (typeof result[key] === 'string') {
+      result[key] = localToUTC(result[key] as string);
+    }
+  }
+  return result;
+}
+
 export class RTClient {
   private url: string;
   private token: string;
@@ -236,12 +258,15 @@ export class RTClient {
   }
 
   createTicket(fields: CreateTicketFields): Promise<unknown> {
-    const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
+    const body = {
+      ...convertDates(fields as Record<string, unknown>),
+      Attachments: fields.Attachments?.map(resolveAttachment),
+    };
     return this.request('POST', 'ticket', body);
   }
 
   updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
-    return this.request('PUT', `ticket/${id}`, fields);
+    return this.request('PUT', `ticket/${id}`, convertDates(fields as Record<string, unknown>));
   }
 
   getTicketHistory(id: number, opts: HistoryOptions = {}): Promise<unknown> {

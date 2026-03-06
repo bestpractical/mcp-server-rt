@@ -108,6 +108,25 @@ describe('RTClient', () => {
         Subject: 'Test',
       });
     });
+
+    it('converts date fields from local time to UTC', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.createTicket({ Queue: 'General', Subject: 'Test', Due: '2026-03-09 00:00:00' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      // Tests run with TZ=UTC, so local time == UTC; exact value should be preserved
+      expect(body.Due).toBe('2026-03-09 00:00:00');
+    });
+
+    it('leaves non-date fields unchanged', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.createTicket({ Queue: 'General', Subject: 'Test', Owner: 'alice' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.Owner).toBe('alice');
+    });
   });
 
   describe('updateTicket', () => {
@@ -118,6 +137,16 @@ describe('RTClient', () => {
       const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(url).toContain('/REST/2.0/ticket/7');
       expect(options.method).toBe('PUT');
+    });
+
+    it('converts date fields from local time to UTC', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Due date changed']));
+      await client.updateTicket(7, { Due: '2026-03-09 00:00:00' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      // Tests run with TZ=UTC, so local time == UTC; exact value should be preserved
+      expect(body.Due).toBe('2026-03-09 00:00:00');
     });
   });
 
