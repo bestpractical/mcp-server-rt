@@ -290,7 +290,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'update_ticket',
-    description: 'Update fields on an existing ticket',
+    description: 'Update an existing ticket. Pass each property to change as a top-level parameter (e.g. Due, Status, Owner) — do NOT use a nested "fields" object.',
     annotations: { destructiveHint: true },
     inputSchema: {
       type: 'object',
