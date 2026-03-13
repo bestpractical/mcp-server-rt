@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.requesttracker/mcp-server-rt",
+  "title": "RT (Request Tracker)",
+  "description": "Connect Claude to a live RT instance — search tickets, create and update tickets, add comments and replies.",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/bestpractical/mcp-server-rt",
+    "source": "github"
+  },
+  "homepage": "https://github.com/bestpractical/mcp-server-rt#readme",
+  "license": "GPL-2.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "mcp-server-rt",
+      "version": "0.2.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "RT_URL",
+          "description": "Base URL of your RT instance (e.g. https://rt.example.com)",
+          "isRequired": true
+        },
+        {
+          "name": "RT_TOKEN",
+          "description": "RT authentication token. Create one in RT under: Logged in as → Settings → Auth Tokens.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

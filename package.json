@@ -1,5 +1,6 @@
 {
   "name": "mcp-server-rt",
+  "mcpName": "com.requesttracker/mcp-server-rt",
   "version": "0.2.0",
   "description": "MCP server for RT (Request Tracker)",
   "license": "GPL-2.0",
@@ -12,7 +13,8 @@
     "dist",
     "data",
     "icon.png",
-    "manifest.json"
+    "manifest.json",
+    "server.json"
   ],
   "scripts": {
     "build": "tsup",
