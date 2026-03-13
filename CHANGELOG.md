@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1] - 2026-03-13
+
+### Fixed
+- Clarified `update_ticket` description to explicitly tell the AI to pass fields as top-level parameters, not a nested `fields` object.
+
+### Metadata
+- Added `server.json` for publishing to the MCP Registry (`registry.modelcontextprotocol.io`).
+- Updated `privacy_policies` in `manifest.json` to use the required object format.
+- Added attachment tools to README tools table.
+
 ## [0.2.0] - 2026-03-06
 
 ### Added

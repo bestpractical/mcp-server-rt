@@ -44,6 +44,44 @@ mcpb pack /tmp/mcp-server-rt-pack mcp-server-rt.mcpb
 
 The staging directory approach ensures the bundle contains only runtime files (~3MB), excluding devDependencies, source files, test files, and local config files like `.mcp.json`.
 
+## Publishing a release
+
+### 1. Prepare
+
+Ensure all changes are committed, tests pass, and version numbers are updated in `package.json`, `manifest.json`, `server.json`, and `CHANGELOG.md`.
+
+```bash
+npm run build
+npm test
+npm run pack          # produces mcp-server-rt.mcpb in the project root
+```
+
+### 2. Publish to npm
+
+```bash
+npm publish
+```
+
+### 3. Create a GitHub release
+
+```bash
+gh release create v0.2.1 mcp-server-rt.mcpb \
+  --title "v0.2.1" \
+  --notes "$(sed -n '/^## \[0.2.1\]/,/^## \[/p' CHANGELOG.md | head -n -1)"
+```
+
+Or create the release manually on GitHub and attach `mcp-server-rt.mcpb` as a release asset.
+
+### 4. Update the MCP Registry
+
+```bash
+mcp-publisher publish
+```
+
+This updates the entry at `registry.modelcontextprotocol.io` to point at the new npm version. Requires the DNS key for `requesttracker.com` — see the DNS verification setup in the registry publishing notes.
+
+---
+
 ## Installing the extension
 
 In Claude Desktop or Claude Cowork:

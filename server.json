@@ -3,7 +3,7 @@
   "name": "com.requesttracker/mcp-server-rt",
   "title": "RT (Request Tracker)",
   "description": "Connect Claude to a live RT instance — search tickets, create and update tickets, add comments and replies.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "repository": {
     "url": "https://github.com/bestpractical/mcp-server-rt",
     "source": "github"
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "mcp-server-rt",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
