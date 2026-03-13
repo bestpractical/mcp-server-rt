@@ -107,6 +107,9 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 | `update_ticket` | Update ticket fields (status, owner, priority, dates, watchers, links, custom fields) |
 | `add_comment` | Add an internal comment (not visible to the requestor) |
 | `add_reply` | Send a reply to the requestor |
+| `get_ticket_attachments` | List all attachments on a ticket |
+| `get_attachment` | Retrieve a single attachment by ID |
+| `save_attachment` | Save an attachment to a local file |
 
 ---
 

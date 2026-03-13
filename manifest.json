@@ -66,7 +66,10 @@
     }
   },
   "privacy_policies": [
-    "https://requesttracker.com/privacy-policy/"
+    {
+      "name": "Best Practical Privacy Policy",
+      "uri": "https://requesttracker.com/privacy-policy/"
+    }
   ],
   "compatibility": {
     "claude_desktop": ">=0.10.0",
