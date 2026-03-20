@@ -59,7 +59,7 @@ npm run pack          # produces mcp-server-rt.mcpb in the project root
 ### 2. Publish to npm
 
 ```bash
-npm publish
+npm publish --access public
 ```
 
 ### 3. Create a GitHub release
