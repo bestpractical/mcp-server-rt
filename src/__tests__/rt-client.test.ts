@@ -438,6 +438,213 @@ describe('RTClient', () => {
     });
   });
 
+  describe('createQueue', () => {
+    it('POSTs to the queue endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 10, _url: 'http://rt.example.com/REST/2.0/queue/10' }));
+      await client.createQueue({ Name: 'Support', Description: 'Support queue' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ Name: 'Support' });
+    });
+  });
+
+  describe('updateQueue', () => {
+    it('PUTs to the queue endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Queue updated']));
+      await client.updateQueue('Support', { Description: 'Updated' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue/Support');
+      expect(options.method).toBe('PUT');
+      expect(JSON.parse(options.body as string)).toMatchObject({ Description: 'Updated' });
+    });
+  });
+
+  describe('listLifecycles', () => {
+    it('GETs the lifecycles endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listLifecycles();
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/lifecycles');
+      expect(url).not.toContain('type=');
+    });
+
+    it('passes type filter as query param', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listLifecycles('ticket');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('type=ticket');
+    });
+  });
+
+  describe('getLifecycle', () => {
+    it('GETs the lifecycle by name', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ name: 'default', statuses: [] }));
+      await client.getLifecycle('default');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/lifecycle/default');
+    });
+  });
+
+  describe('getAvailableRights', () => {
+    it('builds the correct path for a queue', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ rights: [] }));
+      await client.getAvailableRights('queue', '5');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/queue/5/rights/available');
+    });
+
+    it('builds the correct path for global', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ rights: [] }));
+      await client.getAvailableRights('global');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/global/rights/available');
+    });
+  });
+
+  describe('listRights', () => {
+    it('GETs the rights endpoint for a queue', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listRights('queue', '3');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/queue/3/rights');
+    });
+
+    it('passes user and group filters', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listRights('queue', '3', { user: '42' });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('user=42');
+    });
+  });
+
+  describe('grantRight', () => {
+    it('POSTs to the rights endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.grantRight('queue', '5', { Right: 'CreateTicket', User: 'alice' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue/5/rights');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ Right: 'CreateTicket', User: 'alice' });
+    });
+
+    it('POSTs to global rights endpoint when type is global', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.grantRight('global', undefined, { Right: 'CreateTicket', Group: 'Everyone' });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/global/rights');
+    });
+  });
+
+  describe('revokeRight', () => {
+    it('DELETEs the correct rights path for a user', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({}));
+      await client.revokeRight('queue', '5', 'CreateTicket', 'user', '42');
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue/5/rights/CreateTicket/user/42');
+      expect(options.method).toBe('DELETE');
+    });
+
+    it('DELETEs the correct rights path for a group', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({}));
+      await client.revokeRight('queue', '5', 'SeeQueue', 'group', '10');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/queue/5/rights/SeeQueue/group/10');
+    });
+  });
+
+  describe('bulkRights', () => {
+    it('POSTs to the bulk rights endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({}));
+      const grants = [{ Right: 'CreateTicket', User: 'alice' }, { Right: 'SeeQueue', User: 'alice' }];
+      await client.bulkRights('queue', '5', { grant: grants });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue/5/rights/bulk');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ grant: grants });
+    });
+  });
+
+  describe('createCustomField', () => {
+    it('POSTs to the customfield endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 7 }));
+      await client.createCustomField({ Name: 'Priority', Type: 'SelectSingle', LookupType: 'RT::Queue-RT::Ticket' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/customfield');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ Name: 'Priority' });
+    });
+  });
+
+  describe('addCustomFieldValue', () => {
+    it('POSTs to the customfield value endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.addCustomFieldValue(7, { Name: 'High' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/customfield/7/value');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ Name: 'High' });
+    });
+  });
+
+  describe('applyCustomField', () => {
+    it('POSTs to the appliesto endpoint with ObjectId', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({}));
+      await client.applyCustomField(7, 3);
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/customfield/7/appliesto');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toMatchObject({ ObjectId: 3 });
+    });
+  });
+
+  describe('removeCustomFieldApplication', () => {
+    it('DELETEs the appliesto object endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({}));
+      await client.removeCustomFieldApplication(7, 3);
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/customfield/7/appliesto/object/3');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('listCustomFieldApplications', () => {
+    it('GETs the appliesto endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listCustomFieldApplications(7);
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/customfield/7/appliesto');
+    });
+
+    it('passes pagination params', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listCustomFieldApplications(7, { per_page: 10, page: 2 });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('per_page=10');
+      expect(url).toContain('page=2');
+    });
+  });
+
   describe('error handling', () => {
     it('throws with RT error message on failure', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ message: 'Ticket not found' }, 404));

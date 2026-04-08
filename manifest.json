@@ -47,7 +47,21 @@
     { "name": "add_reply", "description": "Send a reply (correspondence) on a ticket, visible to the requestor" },
     { "name": "get_ticket_attachments", "description": "List all attachments on a ticket" },
     { "name": "get_attachment", "description": "Retrieve a single attachment by ID" },
-    { "name": "save_attachment", "description": "Save an attachment to a local file" }
+    { "name": "save_attachment", "description": "Save an attachment to a local file" },
+    { "name": "create_queue", "description": "Create a new RT queue" },
+    { "name": "update_queue", "description": "Update an existing queue's settings" },
+    { "name": "manage_queue_watchers", "description": "Set the members of a queue role (Cc, AdminCc, or a multi-value custom role)" },
+    { "name": "list_lifecycles", "description": "List all available lifecycles" },
+    { "name": "get_lifecycle", "description": "Get a lifecycle's full configuration" },
+    { "name": "get_available_rights", "description": "Get the rights that can be granted on a queue, custom field, group, class, catalog, or globally" },
+    { "name": "list_rights", "description": "List rights currently granted on an object" },
+    { "name": "grant_rights", "description": "Grant rights on a queue, custom field, group, class, catalog, or globally" },
+    { "name": "revoke_right", "description": "Revoke a right from a user or group on an object" },
+    { "name": "create_custom_field", "description": "Create a new custom field definition" },
+    { "name": "add_custom_field_value", "description": "Add a selectable value to a custom field" },
+    { "name": "apply_custom_field", "description": "Apply a custom field to a specific object or globally" },
+    { "name": "remove_custom_field_application", "description": "Remove a custom field from a specific object" },
+    { "name": "list_custom_field_applications", "description": "List which objects a custom field is currently applied to" }
   ],
   "keywords": ["rt", "request-tracker", "ticketing", "helpdesk", "bestpractical"],
   "user_config": {

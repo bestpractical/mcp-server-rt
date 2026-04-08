@@ -412,6 +412,148 @@ export class RTClient {
     });
   }
 
+  // Queue write operations
+
+  createQueue(fields: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', 'queue', fields);
+  }
+
+  updateQueue(idOrName: string, fields: Record<string, unknown>): Promise<unknown> {
+    return this.request('PUT', `queue/${idOrName}`, fields);
+  }
+
+  // Lifecycle operations
+
+  listLifecycles(type?: string): Promise<unknown> {
+    return this.request('GET', 'lifecycles', undefined, type ? { type } : undefined);
+  }
+
+  getLifecycle(name: string): Promise<unknown> {
+    return this.request('GET', `lifecycle/${name}`);
+  }
+
+  createLifecycle(data: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', 'lifecycles', data);
+  }
+
+  updateLifecycle(name: string, data: Record<string, unknown>): Promise<unknown> {
+    return this.request('PUT', `lifecycle/${name}`, data);
+  }
+
+  updateLifecycleMaps(name: string, maps: Record<string, unknown>): Promise<unknown> {
+    return this.request('PUT', `lifecycle/${name}/maps`, maps);
+  }
+
+  validateLifecycle(name: string, data: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', `lifecycle/${name}/validate`, data);
+  }
+
+  // Rights operations
+
+  private rightsObjectPath(objectType: string, objectId?: string): string {
+    if (objectType === 'global') return 'global';
+    return `${objectType}/${objectId}`;
+  }
+
+  getAvailableRights(objectType: string, objectId?: string): Promise<unknown> {
+    return this.request('GET', `${this.rightsObjectPath(objectType, objectId)}/rights/available`);
+  }
+
+  listRights(objectType: string, objectId?: string, opts: { user?: string; group?: string; per_page?: number; page?: number } = {}): Promise<unknown> {
+    return this.request('GET', `${this.rightsObjectPath(objectType, objectId)}/rights`, undefined, {
+      user: opts.user,
+      group: opts.group,
+      per_page: opts.per_page,
+      page: opts.page,
+    });
+  }
+
+  grantRight(objectType: string, objectId: string | undefined, data: object): Promise<unknown> {
+    return this.request('POST', `${this.rightsObjectPath(objectType, objectId)}/rights`, data);
+  }
+
+  revokeRight(objectType: string, objectId: string | undefined, right: string, principalType: string, principalId: string): Promise<unknown> {
+    return this.request('DELETE', `${this.rightsObjectPath(objectType, objectId)}/rights/${right}/${principalType}/${principalId}`);
+  }
+
+  bulkRights(objectType: string, objectId: string | undefined, data: object): Promise<unknown> {
+    return this.request('POST', `${this.rightsObjectPath(objectType, objectId)}/rights/bulk`, data);
+  }
+
+  // Custom field operations
+
+  createCustomField(fields: object): Promise<unknown> {
+    return this.request('POST', 'customfield', fields);
+  }
+
+  addCustomFieldValue(cfId: number, fields: object): Promise<unknown> {
+    return this.request('POST', `customfield/${cfId}/value`, fields);
+  }
+
+  addCustomFieldValues(cfId: number, values: object[]): Promise<unknown> {
+    return this.request('POST', `customfield/${cfId}/value`, values);
+  }
+
+  applyCustomField(cfId: number, objectId: number): Promise<unknown> {
+    return this.request('POST', `customfield/${cfId}/appliesto`, { ObjectId: objectId });
+  }
+
+  removeCustomFieldApplication(cfId: number, objectId: number): Promise<unknown> {
+    return this.request('DELETE', `customfield/${cfId}/appliesto/object/${objectId}`);
+  }
+
+  listCustomFieldApplications(cfId: number, opts: { per_page?: number; page?: number } = {}): Promise<unknown> {
+    return this.request('GET', `customfield/${cfId}/appliesto`, undefined, {
+      per_page: opts.per_page,
+      page: opts.page,
+    });
+  }
+
+  // Group operations
+
+  listGroups(fields?: string): Promise<unknown> {
+    return this.request('GET', 'groups', undefined, { fields });
+  }
+
+  getGroup(idOrName: string): Promise<unknown> {
+    return this.request('GET', `group/${idOrName}`);
+  }
+
+  createGroup(fields: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', 'group', fields);
+  }
+
+  updateGroup(idOrName: string, fields: Record<string, unknown>): Promise<unknown> {
+    return this.request('PUT', `group/${idOrName}`, fields);
+  }
+
+  listGroupMembers(id: string, opts: { recursively?: boolean; users?: boolean; groups?: boolean; per_page?: number; page?: number } = {}): Promise<unknown> {
+    const params: Record<string, string | number | undefined> = {
+      per_page: opts.per_page,
+      page: opts.page,
+    };
+    if (opts.recursively) params.recursively = 1;
+    if (opts.users) params.users = 1;
+    if (opts.groups) params.groups = 1;
+    return this.request('GET', `group/${id}/members`, undefined, params);
+  }
+
+  addGroupMembers(id: string, memberIds: number[]): Promise<unknown> {
+    return this.request('PUT', `group/${id}/members`, memberIds);
+  }
+
+  removeGroupMember(groupId: string, memberId: string): Promise<unknown> {
+    return this.request('DELETE', `group/${groupId}/member/${memberId}`);
+  }
+
+  searchCustomFields(query: object[], opts: { fields?: string; per_page?: number; page?: number } = {}): Promise<unknown> {
+    return this.request('POST', 'customfields', query, {
+      fields: opts.fields,
+      per_page: opts.per_page,
+      page: opts.page,
+    });
+  }
+
   async getQueueFields(idOrName: string): Promise<QueueFieldsResult> {
     const queue = (await this.request('GET', `queue/${idOrName}`)) as {
       id: number;
