@@ -183,7 +183,20 @@ export const TOOLS: Tool[] = [
   {
     name: 'get_queue_fields',
     description:
-      'Get custom fields (with types and allowed values) and lifecycle name for a queue',
+      'Get custom fields (with types and allowed values) and lifecycle name for a queue. ' +
+      'Returns three separate groups, because RT applies custom fields to three different ' +
+      'things: CustomFields are set on tickets in the queue (this is what you want when ' +
+      'creating or updating a ticket), QueueCustomFields are set on the queue itself and ' +
+      'include the queue\'s CurrentValues (RTIR uses these for RTIR Constituency and RTIR ' +
+      'default WHOIS server), and TransactionCustomFields are set on individual comments and ' +
+      'replies. When the user asks what custom fields a queue has, report all three groups and ' +
+      'say which is which. ' +
+      'Every applied field is always listed. If RT permits seeing that a field is applied but ' +
+      'not reading the field itself, the entry carries id, Name and a DetailsUnavailable ' +
+      'message explaining why; a QueueCustomFields entry still carries its CurrentValues too. ' +
+      'The field is still applied to the queue either way, and a field in CustomFields can ' +
+      'still be set on a ticket. Tell the user which fields came back without details rather ' +
+      'than reporting them as missing.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',

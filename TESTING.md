@@ -186,3 +186,36 @@ description warns that a success response does not confirm it.
 **Prompt:** `Look up user [name or email]`
 
 **Expected:** Returns matching RT user accounts.
+
+**Prompt:** `What custom fields does the [queue name] queue have?`
+
+**Expected:**
+- Every custom field applied to the queue is listed, with type and allowed values
+- All three groups are reported and distinguished: `CustomFields` (set on tickets),
+  `QueueCustomFields` (set on the queue itself, with `CurrentValues`), and
+  `TransactionCustomFields` (set on comments and replies)
+
+On an RTIR instance, ask the same question about the `Incidents` queue. `RTIR Constituency`
+and `RTIR default WHOIS server` must both appear under `QueueCustomFields` — they are applied
+to the queue object, not to tickets, and were previously reported as missing.
+
+---
+
+## 12. Queue Custom Fields Under Restricted Rights
+
+This covers the failure mode where a queue appeared to have no custom fields at all.
+It needs a second RT user whose `SeeCustomField` right is granted **on the queue**
+rather than globally, plus an auth token for that user:
+
+- Grant that user `SeeQueue`, `ShowTicket`, and `SeeCustomField` on one queue only
+- Do not grant `SeeCustomField` globally, and do not make the user a SuperUser
+- Point a second MCP server entry at that user's token
+
+**Prompt:** `What custom fields does the [queue name] queue have?`
+
+**Expected:**
+- Every custom field applied to the queue is still listed by name — the count must match
+  what RT shows under Admin > Queues > Custom Fields
+- Fields whose details cannot be read carry a `DetailsUnavailable` message
+- The AI reports those fields as present but unreadable, **not** as missing, and does not
+  claim the queue has no custom fields

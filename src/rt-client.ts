@@ -56,11 +56,25 @@ export interface UserSearchOptions {
   page?: number;
 }
 
+// A custom field reference as it appears on a queue record. Queue-level
+// references also carry the queue's current values for that field.
+interface CustomFieldRef {
+  id: number;
+  name: string;
+  values?: unknown[];
+  _url?: string;
+}
+
 export interface QueueFieldsResult {
   id: number;
   Name: string;
   Lifecycle: string;
+  // Fields applied to tickets in this queue
   CustomFields: unknown[];
+  // Fields applied to the queue object itself
+  QueueCustomFields: unknown[];
+  // Fields applied to transactions on tickets in this queue
+  TransactionCustomFields: unknown[];
 }
 
 export interface GetTicketOptions {
@@ -413,27 +427,65 @@ export class RTClient {
     });
   }
 
+  // Expand a queue record's custom field references into full definitions.
+  //
+  // The queue record is the authoritative list of applied custom fields: RT
+  // builds it with the queue as ACL context, so it includes fields whose
+  // SeeCustomField right is granted at queue level rather than globally.
+  // Fetching those fields individually carries no such context and can be
+  // forbidden, so a failed detail fetch must never drop the field from the
+  // list — report it with what the queue already told us instead.
+  private async expandCustomFields(refs: CustomFieldRef[]): Promise<unknown[]> {
+    const results = await Promise.allSettled(
+      refs.map((cf) => this.request('GET', `customfield/${cf.id}`)),
+    );
+
+    return results.map((result, i) => {
+      const ref = refs[i];
+      // Queue-level fields carry the queue's current values; ticket and
+      // transaction field references do not.
+      const current = ref.values !== undefined ? { CurrentValues: ref.values } : {};
+
+      if (result.status === 'fulfilled') {
+        return { ...(result.value as Record<string, unknown>), ...current };
+      }
+      return {
+        id: ref.id,
+        Name: ref.name,
+        ...current,
+        DetailsUnavailable:
+          result.reason instanceof Error ? result.reason.message : String(result.reason),
+      };
+    });
+  }
+
   async getQueueFields(idOrName: string): Promise<QueueFieldsResult> {
     const queue = (await this.request('GET', `queue/${idOrName}`)) as {
       id: number;
       Name: string;
       Lifecycle: string;
-      TicketCustomFields?: Array<{ id: number; _url?: string }>;
+      TicketCustomFields?: CustomFieldRef[];
+      CustomFields?: CustomFieldRef[];
+      TicketTransactionCustomFields?: CustomFieldRef[];
     };
 
-    const cfRefs = queue.TicketCustomFields ?? [];
-    const results = await Promise.allSettled(
-      cfRefs.map((cf) => this.request('GET', `customfield/${cf.id}`)),
-    );
-    const customFields = results
-      .filter((r): r is PromiseFulfilledResult<unknown> => r.status === 'fulfilled')
-      .map((r) => r.value);
+    // RT keeps three separate groups on a queue record: fields applied to
+    // tickets in the queue, fields on the queue object itself (RTIR uses these
+    // for Constituency and the default WHOIS server), and fields applied to
+    // ticket transactions. Reading only the first reports the others as missing.
+    const [customFields, queueCustomFields, transactionCustomFields] = await Promise.all([
+      this.expandCustomFields(queue.TicketCustomFields ?? []),
+      this.expandCustomFields(queue.CustomFields ?? []),
+      this.expandCustomFields(queue.TicketTransactionCustomFields ?? []),
+    ]);
 
     return {
       id: queue.id,
       Name: queue.Name,
       Lifecycle: queue.Lifecycle,
       CustomFields: customFields,
+      QueueCustomFields: queueCustomFields,
+      TransactionCustomFields: transactionCustomFields,
     };
   }
 }
