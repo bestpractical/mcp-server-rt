@@ -76,6 +76,13 @@ These tests require a running RT instance and a configured MCP connection. Run t
 - `update_ticket` called with correct `Priority` and `Due` values
 - Due date is in the correct local timezone (verify in RT that it shows the right date)
 
+**Prompt:** (on a ticket whose multi-value `[CF name]` already holds `[existing value]`)
+`Add [new value] to the [CF name] custom field on ticket [ID]`
+
+**Expected:** The existing value survives. RT replaces the whole value set for a multi-value
+custom field, so the AI must read the current values first and send both
+(`{"Test Tags": ["Red", "Blue"]}`), not just the new one.
+
 **Prompt:** `Resolve it`
 
 **Expected:** Status updated to `resolved`.

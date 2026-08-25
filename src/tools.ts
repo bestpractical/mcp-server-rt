@@ -262,7 +262,10 @@ export const TOOLS: Tool[] = [
         Priority: { type: 'integer', description: 'New priority' },
         Owner: { type: 'string', description: 'New owner username' },
         Queue: { type: 'string', description: 'Move to this queue' },
-        CustomFields: { type: 'object', description: 'Custom field values to update' },
+        CustomFields: {
+          type: 'object',
+          description: 'Custom field values to update, as {CF_name: value}. Each value replaces everything the field currently holds, so for a multi-value field pass an array of the complete set you want ({"Tags": ["Red", "Blue"]}) — to add to existing values, read them with get_ticket first and include them. RT silently ignores names it does not recognize, so a success response does not confirm a field was set. Use get_queue_fields to see the custom fields available on the ticket\'s queue.',
+        },
         CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
         Requestor: { description: 'Requestor username(s) — replaces existing list (string or array of strings)' },
         Cc: { description: 'Cc username(s) — replaces existing list (string or array of strings)' },

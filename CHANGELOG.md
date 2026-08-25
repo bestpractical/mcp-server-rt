@@ -8,6 +8,7 @@
 ### Fixed
 - `npm test` now runs `tsc --noEmit` before the test suite, and the pre-existing `CreateTicketFields` cast error in `convertDates` is resolved.
 - `add_comment` and `add_reply` treat an explicit `null` `CustomFields` as omitted, rather than sending `"CustomFields": null` to RT.
+- `update_ticket` now tells the AI that a custom field value replaces the field's entire contents, so setting one value on a multi-value field no longer silently drops the others.
 
 ### Internal
 - Split `src/index.ts`: the tool definitions and argument wiring moved to `src/tools.ts`, leaving `index.ts` as the server bootstrap. `callTool` now takes the `RTClient` as a parameter, which makes the tool schemas and argument pass-through testable (`src/__tests__/tools.test.ts`).
