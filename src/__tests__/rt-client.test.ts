@@ -404,6 +404,152 @@ describe('RTClient', () => {
       const result = await client.getQueueFields('Empty') as { CustomFields: unknown[] };
       expect(result.CustomFields).toHaveLength(0);
     });
+
+    it('keeps a custom field whose detail fetch is forbidden', async () => {
+      mockFetch
+        .mockReturnValueOnce(
+          mockResponse({
+            id: 1,
+            Name: 'General',
+            Lifecycle: 'default',
+            TicketCustomFields: [
+              { id: 10, name: 'Category', ref: 'customfield' },
+              { id: 11, name: 'Severity', ref: 'customfield' },
+            ],
+          }),
+        )
+        .mockReturnValueOnce(mockResponse({ id: 10, Name: 'Category', Type: 'Select', Values: ['Bug'] }))
+        .mockReturnValueOnce(mockResponse({ message: 'Forbidden' }, 403));
+
+      const result = await client.getQueueFields('General') as {
+        CustomFields: Array<Record<string, unknown>>;
+      };
+
+      expect(result.CustomFields).toHaveLength(2);
+      expect(result.CustomFields[0]).toMatchObject({ Name: 'Category', Type: 'Select' });
+      expect(result.CustomFields[1]).toMatchObject({ id: 11, Name: 'Severity' });
+      expect(result.CustomFields[1].DetailsUnavailable).toContain('403');
+    });
+
+    // RT keeps three separate groups of custom fields on a queue record.
+    // RTIR puts "RTIR Constituency" and "RTIR default WHOIS server" in the
+    // queue's own CustomFields, so reading only TicketCustomFields reported
+    // them as missing.
+    it('reports the queue\'s own and transaction custom fields separately', async () => {
+      mockFetch
+        .mockReturnValueOnce(
+          mockResponse({
+            id: 1,
+            Name: 'Incidents',
+            Lifecycle: 'incidents',
+            TicketCustomFields: [{ id: 4, name: 'Classification' }],
+            CustomFields: [{ id: 2, name: 'RTIR default WHOIS server', values: ['whois.example.com'] }],
+            TicketTransactionCustomFields: [{ id: 9, name: 'Txn Note' }],
+          }),
+        )
+        // Ticket CFs are fetched first, then queue CFs, then transaction CFs.
+        .mockReturnValueOnce(mockResponse({ id: 4, Name: 'Classification', Type: 'Select' }))
+        .mockReturnValueOnce(mockResponse({ id: 2, Name: 'RTIR default WHOIS server', Type: 'Freeform' }))
+        .mockReturnValueOnce(mockResponse({ id: 9, Name: 'Txn Note', Type: 'Freeform' }));
+
+      const result = await client.getQueueFields('Incidents') as {
+        CustomFields: Array<Record<string, unknown>>;
+        QueueCustomFields: Array<Record<string, unknown>>;
+        TransactionCustomFields: Array<Record<string, unknown>>;
+      };
+
+      expect(result.CustomFields.map((cf) => cf.Name)).toEqual(['Classification']);
+      expect(result.QueueCustomFields.map((cf) => cf.Name)).toEqual(['RTIR default WHOIS server']);
+      expect(result.TransactionCustomFields.map((cf) => cf.Name)).toEqual(['Txn Note']);
+    });
+
+    it('includes the current values of the queue\'s own custom fields', async () => {
+      mockFetch
+        .mockReturnValueOnce(
+          mockResponse({
+            id: 1,
+            Name: 'Incidents',
+            Lifecycle: 'incidents',
+            CustomFields: [{ id: 2, name: 'RTIR default WHOIS server', values: ['whois.example.com'] }],
+          }),
+        )
+        .mockReturnValueOnce(mockResponse({ id: 2, Name: 'RTIR default WHOIS server', Type: 'Freeform' }));
+
+      const result = await client.getQueueFields('Incidents') as {
+        QueueCustomFields: Array<Record<string, unknown>>;
+      };
+
+      expect(result.QueueCustomFields[0].CurrentValues).toEqual(['whois.example.com']);
+    });
+
+    it('keeps a queue custom field whose detail fetch is forbidden', async () => {
+      mockFetch
+        .mockReturnValueOnce(
+          mockResponse({
+            id: 1,
+            Name: 'Incidents',
+            Lifecycle: 'incidents',
+            CustomFields: [{ id: 2, name: 'RTIR Constituency', values: ['Government'] }],
+          }),
+        )
+        .mockReturnValueOnce(mockResponse({ message: 'Forbidden' }, 403));
+
+      const result = await client.getQueueFields('Incidents') as {
+        QueueCustomFields: Array<Record<string, unknown>>;
+      };
+
+      expect(result.QueueCustomFields).toHaveLength(1);
+      expect(result.QueueCustomFields[0]).toMatchObject({ id: 2, Name: 'RTIR Constituency' });
+      expect(result.QueueCustomFields[0].DetailsUnavailable).toContain('403');
+      // The queue record already told us the value, so it survives the failed fetch.
+      expect(result.QueueCustomFields[0].CurrentValues).toEqual(['Government']);
+    });
+
+    it('returns empty groups when the queue has no queue or transaction fields', async () => {
+      mockFetch.mockReturnValueOnce(
+        mockResponse({ id: 2, Name: 'Empty', Lifecycle: 'default' }),
+      );
+
+      const result = await client.getQueueFields('Empty') as {
+        QueueCustomFields: unknown[];
+        TransactionCustomFields: unknown[];
+      };
+
+      expect(result.QueueCustomFields).toEqual([]);
+      expect(result.TransactionCustomFields).toEqual([]);
+    });
+
+    // When SeeCustomField is granted at queue level rather than globally,
+    // RT lists the CFs on the queue record (which sets the queue as ACL
+    // context) but forbids GET /customfield/{id} (which has no context).
+    // Every field was silently dropped, so the queue looked like it had none.
+    it('reports every custom field the queue lists even when all detail fetches fail', async () => {
+      mockFetch
+        .mockReturnValueOnce(
+          mockResponse({
+            id: 1,
+            Name: 'General',
+            Lifecycle: 'default',
+            TicketCustomFields: [
+              { id: 10, name: 'Category' },
+              { id: 11, name: 'Severity' },
+              { id: 12, name: 'Where Blocked' },
+            ],
+          }),
+        )
+        .mockReturnValue(mockResponse({ message: 'Forbidden' }, 403));
+
+      const result = await client.getQueueFields('General') as {
+        CustomFields: Array<Record<string, unknown>>;
+      };
+
+      expect(result.CustomFields).toHaveLength(3);
+      expect(result.CustomFields.map((cf) => cf.Name)).toEqual([
+        'Category',
+        'Severity',
+        'Where Blocked',
+      ]);
+    });
   });
 
   describe('URL rewriting', () => {

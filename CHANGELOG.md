@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- `get_queue_fields` now reports all three groups of custom fields RT keeps on a queue, not just the ticket fields. Fields applied to the queue object itself are returned as `QueueCustomFields` (with the queue's `CurrentValues`), and fields applied to transactions as `TransactionCustomFields`. RTIR keeps `RTIR Constituency` and `RTIR default WHOIS server` on the queue object, so those were previously reported as missing from every RTIR queue no matter what rights the user held.
+- `get_queue_fields` no longer silently omits custom fields. RT lists a queue's custom fields using the queue as ACL context, so a field whose `SeeCustomField` right is granted at queue level is visible there but forbidden when fetched individually. Those failed fetches were discarded, so the queue could report fewer fields than it has — or none at all. Every applied field is now always listed; when its details cannot be read the entry carries `id`, `Name`, and a `DetailsUnavailable` message.
+
 ### Added
 - `CustomFields` on `add_comment` and `add_reply`, so a comment or reply and its ticket custom field changes happen in one tool call instead of requiring a separate `update_ticket` call. RT applies the custom fields after recording the Comment or Correspond transaction, each as its own `CustomField` transaction — scrips firing on the comment or reply still see the previous values.
 
