@@ -5,7 +5,12 @@ export interface InstructionContext {
   timezone: string;
 }
 
-// Guidance handed to the AI at MCP handshake time.
+// Guidance handed to the AI at MCP handshake time. Two rules worth keeping in
+// mind when editing: state RT concepts in terms the AI can verify from a
+// response rather than hardcoded values, and prefer TicketSQL meta-values such
+// as __Active__ over literal status names, which are configurable per
+// installation. Where a default has to be named, say that it is a default and
+// tell the AI how to confirm the real value.
 export function buildInstructions({ rtUrl, timezone }: InstructionContext): string {
   return (
     'When presenting RT tickets to the user, always link to the web UI ' +
@@ -26,17 +31,25 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'Always default the Owner of new reminders to the current user (use get_current_user) unless the user explicitly says otherwise. ' +
     'When searching for reminders, always scope to Owner = current user by default unless the user asks for reminders belonging to someone else.\n' +
     'To find reminders for a specific ticket, use search_tickets with TicketSQL: ' +
-    '`Type = \'reminder\' AND RefersTo = \'TICKET_ID\' AND Owner = \'USERNAME\'`.\n' +
+    '`Type = \'reminder\' AND RefersTo = \'TICKET_ID\' AND Owner = \'USERNAME\'`, ' +
+    'adding `AND Status = \'__Active__\'` to list only the ones still outstanding.\n' +
     'Always link a new reminder to a parent ticket via RefersTo. If the context does not make clear which ticket to link to, ask the user before creating.\n' +
     'Reminders have exactly two states: active and inactive. ' +
-    'By default the active status is "open" and the inactive status is "resolved", ' +
-    'but these can be customized per RT installation. ' +
-    'The available status transitions are visible in the _hyperlinks of a get_ticket response (ref = "lifecycle"), ' +
-    'which can confirm the inactive status name if needed. ' +
+    'Never search for reminders by a literal status name. The status a reminder starts in depends on how it ' +
+    'was created: this server creates reminders through the ticket API, so they start in the queue lifecycle\'s ' +
+    'on_create status ("new" in RT\'s default lifecycle), while a reminder created in the RT web UI starts in ' +
+    'that lifecycle\'s reminder_on_open status ("open" by default). One ticket can hold both, so no literal ' +
+    'status name finds them all. ' +
+    'Always use Status = \'__Active__\' to find outstanding reminders, which matches the initial and active ' +
+    'statuses of every lifecycle, and Status = \'__Inactive__\' for completed ones. This is the same query ' +
+    'RT\'s own reminder listing uses.\n' +
     'When a user asks to close, complete, dismiss, or mark a reminder as done on a ticket: ' +
-    '(1) search for active reminders linked to that ticket owned by the current user, ' +
-    '(2) if there is exactly one, update its status to the inactive status (default: "resolved"); ' +
-    'if there are multiple, ask the user which one to close. ' +
-    'If the status update fails, ask the user what status their RT instance uses for completed reminders.'
+    '(1) search for active reminders linked to that ticket owned by the current user using Status = \'__Active__\', ' +
+    '(2) if there are multiple, ask the user which one to close, ' +
+    '(3) set the chosen reminder to the lifecycle\'s inactive status for reminders, which is "resolved" unless ' +
+    'the installation configures reminder_on_resolve differently. ' +
+    'The statuses that reminder can move to are listed in the _hyperlinks of a get_ticket response ' +
+    '(ref = "lifecycle", each carrying a "to" status); if "resolved" is not among them, choose the inactive ' +
+    'status from that list, and ask the user if none of them is clearly the completed state.'
   );
 }

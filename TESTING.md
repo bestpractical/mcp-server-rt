@@ -115,7 +115,19 @@ custom field, so the AI must read the current values first and send both
 **Prompt:** `Show me all my open reminders`
 
 **Expected:**
-- Searches `Type = 'reminder' AND Owner = 'your-username' AND Status = 'open'` (or `__Active__`)
+- Searches `Type = 'reminder' AND Owner = 'your-username' AND Status = '__Active__'`
+- **Not** `Status = 'open'`. This server creates reminders through the ticket API, so they
+  start in the queue lifecycle's `on_create` status — `new` in RT's default lifecycle —
+  while a reminder created from the ticket's Reminders box in the web UI starts in that
+  lifecycle's `reminder_on_open` status, `open` by default. Confirm the reminder you just
+  created in section 6 actually appears.
+
+Create a second reminder on the same ticket from the web UI and search again. Both should
+come back, in different statuses. That is the case no literal status name can cover.
+
+This is also worth running on more than one lifecycle if you have them. RT's default
+lifecycle uses `on_create => 'new'`, while RTIR's `incidents` lifecycle uses
+`on_create => 'open'` — so `Status = 'open'` silently works on RTIR and fails on stock RT.
 
 ---
 
