@@ -25,6 +25,24 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'Present ticket results on one line if it fits on the current display. ' +
     'Use a two-row display if needed to show all of the requested ticket fields. ' +
     'Omit empty or unset fields rather than showing blank values.\n\n' +
+    'CONTENT FORMATTING: The ticket Description field is HTML. A plain newline produces no line ' +
+    'break there, so use <p> for paragraphs and <br /> for single breaks. If you do pass plain text ' +
+    'with line breaks and no markup at all, the server converts it to paragraphs for you.\n' +
+    'Custom field values depend on the field, and get_queue_fields reports a ContentFormat for each ' +
+    'one. "html" means send HTML, because newlines alone will not render. "plain-text-multiline" ' +
+    'means send plain text and RT turns the newlines into line breaks. "plain-text" means the value ' +
+    'is shown exactly as typed, so markup appears literally and newlines do not break lines. ' +
+    '"wikitext" means wiki markup rather than HTML. "file" means the field holds an uploaded image ' +
+    'or attachment, not text you can set as a string. "date" holds a date and "datetime" a date and ' +
+    'time; send those in the user\'s local time, which RT interprets in their own timezone. ' +
+    'Check ContentFormat before writing a multi-line or formatted value to a custom field.\n' +
+    'RT escapes a bare <, & or > in running text and does not double-escape an entity you have ' +
+    'already escaped, so ordinary punctuation is safe to send as typed. What RT will not do is keep ' +
+    'angle brackets that parse as a tag it does not allow: it deletes that tag and the text inside ' +
+    'it, silently, and the response still reports success. So write angle brackets that are not ' +
+    'markup as &lt; and &gt; yourself — an address like &lt;bob@example.com&gt; or a placeholder ' +
+    'like &lt;PID&gt; is lost otherwise, in the Description and in any custom field whose ' +
+    'ContentFormat is "html", "plain-text-multiline" or "wikitext".\n\n' +
     'REMINDERS: Reminders are tickets with Type = \'reminder\'. They are mini-tasks linked to a parent ticket ' +
     'via a RefersTo relationship and are displayed in the context of that parent ticket in the RT UI. ' +
     'Reminders have an Owner field — "set a reminder" means setting one for the current user. ' +

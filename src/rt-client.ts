@@ -168,6 +168,65 @@ export interface MessageFields {
   CustomFields?: Record<string, unknown>;
 }
 
+// How RT renders a custom field value, keyed by CF type. RT dispatches display
+// to a ShowCustomField<Type> component and HTML-escapes anything with no such
+// component, which gives three behaviours worth telling an AI apart:
+//   html                  markup renders; a bare newline shows nothing
+//   plain-text-multiline   newlines become <br />; markup also renders
+//   plain-text             value is escaped, so markup and newlines show as typed
+export const CONTENT_FORMATS: Record<string, string> = {
+  HTML: 'html',
+  Text: 'plain-text-multiline',
+  Wikitext: 'wikitext',
+  Binary: 'file',
+  Image: 'file',
+  Date: 'date',
+  DateTime: 'datetime',
+};
+
+function contentFormatFor(type: unknown): string | undefined {
+  if (typeof type !== 'string') return undefined;
+  return CONTENT_FORMATS[type] ?? 'plain-text';
+}
+
+// The tags RT's scrubber keeps: @ALLOWED_TAGS from RT::Interface::Web::Scrubber,
+// plus the conditionally allowed img. Any other tag RT deletes along with the
+// text inside it, so treating "<" alone as a sign of markup loses data —
+// "Contact <bob@example.com>" reaches the browser as "Contact ". Text shaped
+// like a tag RT would not keep is safer escaped than passed through.
+const HTML_TAGS = [
+  'a', 'b', 'u', 'p', 'br', 'i', 'hr', 'small', 'em', 'font', 'span', 'strong', 'sub',
+  'sup', 's', 'del', 'strike', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ins', 'div', 'ul',
+  'ol', 'li', 'dl', 'dt', 'dd', 'pre', 'blockquote', 'bdo', 'table', 'thead', 'tbody',
+  'tfoot', 'tr', 'td', 'th', 'figure', 'iframe', 'code', 'img',
+];
+const HTML_TAG = new RegExp(`<\\/?(?:${HTML_TAGS.join('|')})(?:\\s[^>]*)?\\/?>`, 'i');
+
+// Ticket Description is HTML: RT scrubs it and renders the result raw, so a
+// newline produces no line break and multi-line text arrives as one paragraph.
+// Escape the angle brackets so RT keeps them; leave "&" alone, because RT
+// escapes a bare one itself and does not double-escape an entity, so a
+// deliberate "&amp;" survives.
+function htmlFromPlainText(value: string): string {
+  return value
+    .trim()
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .split(/\n\s*\n+/)
+    .map((para) => `<p>${para.split('\n').join('<br />')}</p>`)
+    .join('');
+}
+
+// Convert a value that is unambiguously plain text — it has line breaks, some
+// content, and no tag RT would render — and leave anything else as supplied.
+function formatDescription(fields: Record<string, unknown>): Record<string, unknown> {
+  const description = fields.Description;
+  if (typeof description !== 'string') return fields;
+  if (!description.includes('\n') || !description.trim()) return fields;
+  if (HTML_TAG.test(description)) return fields;
+  return { ...fields, Description: htmlFromPlainText(description) };
+}
+
 // Date fields that should be converted from local time to UTC before sending to RT
 const DATE_FIELDS = new Set(['Due', 'Starts', 'Started', 'Told']);
 
@@ -284,14 +343,14 @@ export class RTClient {
 
   createTicket(fields: CreateTicketFields): Promise<unknown> {
     const body = {
-      ...convertDates(fields),
+      ...formatDescription(convertDates(fields)),
       Attachments: fields.Attachments?.map(resolveAttachment),
     };
     return this.request('POST', 'ticket', body);
   }
 
   updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
-    return this.request('PUT', `ticket/${id}`, convertDates(fields));
+    return this.request('PUT', `ticket/${id}`, formatDescription(convertDates(fields)));
   }
 
   getTicketHistory(id: number, opts: HistoryOptions = {}): Promise<unknown> {
@@ -447,7 +506,9 @@ export class RTClient {
       const current = ref.values !== undefined ? { CurrentValues: ref.values } : {};
 
       if (result.status === 'fulfilled') {
-        return { ...(result.value as Record<string, unknown>), ...current };
+        const cf = result.value as Record<string, unknown>;
+        const format = contentFormatFor(cf.Type);
+        return { ...cf, ...(format ? { ContentFormat: format } : {}), ...current };
       }
       return {
         id: ref.id,

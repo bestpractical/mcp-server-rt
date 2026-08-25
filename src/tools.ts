@@ -191,6 +191,11 @@ export const TOOLS: Tool[] = [
       'default WHOIS server), and TransactionCustomFields are set on individual comments and ' +
       'replies. When the user asks what custom fields a queue has, report all three groups and ' +
       'say which is which. ' +
+      'Each field carries a ContentFormat saying how its value is rendered: "html" (send markup; a ' +
+      'bare newline shows nothing), "plain-text-multiline" (send plain text; newlines become line ' +
+      'breaks), "plain-text" (shown exactly as typed), "wikitext" (wiki markup), "file" (an ' +
+      'uploaded image or attachment rather than text), "date", or "datetime" (send local time; RT ' +
+      'reads it in the user\'s timezone). Check it before writing a multi-line or formatted value. ' +
       'Every applied field is always listed. If RT permits seeing that a field is applied but ' +
       'not reading the field itself, the entry carries id, Name and a DetailsUnavailable ' +
       'message explaining why; a QueueCustomFields entry still carries its CurrentValues too. ' +
@@ -223,7 +228,7 @@ export const TOOLS: Tool[] = [
           enum: ['text/plain', 'text/html'],
           description: 'Content MIME type (default text/plain)',
         },
-        Description: { type: 'string', description: 'Ticket description' },
+        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
         Status: { type: 'string', description: 'Initial status' },
         Priority: { type: 'integer', description: 'Ticket priority' },
@@ -231,7 +236,7 @@ export const TOOLS: Tool[] = [
         Requestor: { description: 'Requestor username(s) (string or array of strings)' },
         Cc: { description: 'Cc username(s) (string or array of strings)' },
         AdminCc: { description: 'AdminCc username(s) (string or array of strings)' },
-        CustomFields: { type: 'object', description: 'Custom field values as {CF_name: value}' },
+        CustomFields: { type: 'object', description: 'Custom field values as {CF_name: value}. How a value is displayed depends on the field: call get_queue_fields and check each field\'s ContentFormat before writing a multi-line or formatted value.' },
         CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
         Due: { type: 'string', description: 'Due datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
         Starts: { type: 'string', description: 'Starts datetime (format: "YYYY-MM-DD HH:MM:SS" in local time)' },
@@ -270,14 +275,14 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         Subject: { type: 'string', description: 'New subject' },
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
-        Description: { type: 'string', description: 'Ticket description' },
+        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
         Status: { type: 'string', description: 'New status (e.g. open, resolved, rejected)' },
         Priority: { type: 'integer', description: 'New priority' },
         Owner: { type: 'string', description: 'New owner username' },
         Queue: { type: 'string', description: 'Move to this queue' },
         CustomFields: {
           type: 'object',
-          description: 'Custom field values to update, as {CF_name: value}. Each value replaces everything the field currently holds, so for a multi-value field pass an array of the complete set you want ({"Tags": ["Red", "Blue"]}) — to add to existing values, read them with get_ticket first and include them. RT silently ignores names it does not recognize, so a success response does not confirm a field was set. Use get_queue_fields to see the custom fields available on the ticket\'s queue.',
+          description: 'Custom field values to update, as {CF_name: value}. Each value replaces everything the field currently holds, so for a multi-value field pass an array of the complete set you want ({"Tags": ["Red", "Blue"]}) — to add to existing values, read them with get_ticket first and include them. RT silently ignores names it does not recognize, so a success response does not confirm a field was set. Use get_queue_fields to see the custom fields available on the ticket\'s queue and to check a field\'s ContentFormat before writing a multi-line or formatted value.',
         },
         CustomRoles: { type: 'object', description: 'Custom role assignments as {role_name: username_or_array}' },
         Requestor: { description: 'Requestor username(s) — replaces existing list (string or array of strings)' },

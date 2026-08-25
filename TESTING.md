@@ -213,7 +213,51 @@ to the queue object, not to tickets, and were previously reported as missing.
 
 ---
 
-## 12. Queue Custom Fields Under Restricted Rights
+## 12. HTML and Plain Text Fields
+
+Needs a queue with at least one `HTML` custom field and one `Text` custom field.
+
+**Prompt:** `What custom fields does [queue] have, and which take HTML?`
+
+**Expected:** The AI reports each field's `ContentFormat` — `html`, `plain-text-multiline`,
+`plain-text`, `wikitext`, `file`, `date` or `datetime` — rather than only RT's type names.
+
+**Prompt:** `Set the description on ticket [ID] to a two-paragraph summary of the problem`
+
+**Expected:** The description renders in RT as separate paragraphs, not one run-on block.
+The AI may send HTML itself, or send plain text with blank lines and let the server convert
+it. Check the rendered ticket, not just the stored value.
+
+**Prompt:** `Put a two-line note in the [HTML custom field] on ticket [ID]`
+
+**Expected:** Line breaks appear in RT. An `html` field needs `<br />` or `<p>`; if the AI
+sends bare newlines the value renders as one line — that is the failure this section is
+looking for, and the AI should have used the `ContentFormat` hint to avoid it.
+
+**Prompt:** `Put "profit margin > 50% & rising" in the [HTML custom field] on ticket [ID]`
+
+**Expected:** The text displays exactly as written. RT escapes a bare `>` and `&` itself, so
+the AI should not pre-escape them and the value must not show as `&gt;` or `&amp;` on screen.
+
+Angle brackets that look like a tag are the exception: RT deletes any tag it does not allow
+along with the text inside it, so those have to be escaped before they reach RT.
+
+**Prompt:** `Note in the [HTML custom field] on ticket [ID] that the contact is <ops@example.com>`
+
+**Expected:** The address is visible in RT. The failure this is looking for is a value that
+renders as "the contact is" with the address gone — RT parsed `<ops@example.com>` as a tag
+and dropped it. The AI should have sent `&lt;ops@example.com&gt;`.
+
+**Prompt:** `Set the description on ticket [ID] to two lines: "Disk usage < 10% free" and
+"Please investigate today"`
+
+**Expected:** Both lines are visible and on separate lines. Two failures to watch for: the
+`<` swallowing the rest of the line, and the line break rendering as nothing because the
+value skipped paragraph conversion. A bare `<` in prose is not markup.
+
+---
+
+## 13. Queue Custom Fields Under Restricted Rights
 
 This covers the failure mode where a queue appeared to have no custom fields at all.
 It needs a second RT user whose `SeeCustomField` right is granted **on the queue**
