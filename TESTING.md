@@ -314,7 +314,36 @@ value skipped paragraph conversion. A bare `<` in prose is not markup.
 
 ---
 
-## 13. Queue Custom Fields Under Restricted Rights
+## 13. Ticket Links
+
+Start with a ticket that already has at least one `RefersTo` link.
+
+**Prompt:** `Make ticket [A] refer to ticket [B] as well`
+
+**Expected:** `update_ticket` with `AddRefersTo`. The existing link is still there
+afterwards — adding a link must never remove one.
+
+**Prompt:** `Make ticket [A] refer to tickets [B] and [C]`
+
+**Expected:** A single `AddRefersTo` carrying an array, not one call per ticket.
+
+**Prompt:** `Ticket [A] should no longer refer to ticket [B]`
+
+**Expected:** `update_ticket` with `DeleteRefersTo`.
+
+**Prompt:** `Replace ticket [A]'s references so it only refers to ticket [C]`
+
+**Expected:** A delete of the current links followed by an add, or the AI asking which
+links to remove. `update_ticket` does not accept a bare `RefersTo`; if the AI tries one
+it gets an error naming `AddRefersTo`/`DeleteRefersTo` and **no links change**. Verify in
+RT that nothing was unlinked by the rejected attempt.
+
+Repeat one of these with `DependsOn` and with `Parent`/`Child` to confirm the other
+relations behave the same way.
+
+---
+
+## 14. Queue Custom Fields Under Restricted Rights
 
 This covers the failure mode where a queue appeared to have no custom fields at all.
 It needs a second RT user whose `SeeCustomField` right is granted **on the queue**

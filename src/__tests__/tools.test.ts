@@ -245,6 +245,74 @@ describe('tool layer', () => {
     });
   });
 
+  // Setting a bare link field replaces every existing link of that type, which
+  // is a destructive default for an AI. update_ticket offers only the
+  // incremental forms.
+  describe('link fields on update_ticket', () => {
+    const relations = ['RefersTo', 'ReferredToBy', 'DependsOn', 'DependedOnBy', 'Parent', 'Child'];
+
+    it.each(relations)('offers Add%s and Delete%s', (relation) => {
+      const props = schemaProperties('update_ticket');
+      expect(props).toHaveProperty(`Add${relation}`);
+      expect(props).toHaveProperty(`Delete${relation}`);
+    });
+
+    it.each(relations)('does not offer a bare %s that would replace existing links', (relation) => {
+      expect(schemaProperties('update_ticket')).not.toHaveProperty(relation);
+    });
+
+    it('forwards a single link id to add', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Ticket 7 refers to Ticket 9.']));
+      await callTool(rt, 'update_ticket', { id: 7, AddRefersTo: 9 });
+
+      expect(requestBody().AddRefersTo).toBe(9);
+    });
+
+    it('forwards multiple link ids to add', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Ticket 7 refers to Ticket 9.']));
+      await callTool(rt, 'update_ticket', { id: 7, AddRefersTo: [9, 10] });
+
+      expect(requestBody().AddRefersTo).toEqual([9, 10]);
+    });
+
+    it('forwards link ids to delete', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Ticket 7 no longer refers to Ticket 9.']));
+      await callTool(rt, 'update_ticket', { id: 7, DeleteRefersTo: [9] });
+
+      expect(requestBody().DeleteRefersTo).toEqual([9]);
+    });
+
+    it('rejects a bare link field instead of silently replacing links', async () => {
+      await expect(callTool(rt, 'update_ticket', { id: 7, RefersTo: 9 })).rejects.toThrow(
+        /AddRefersTo/,
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    // RT accepts several aliases for the same relation, all with replace
+    // semantics, so the guard covers the whole typemap rather than just the
+    // six names this tool used to expose.
+    it.each(['Parents', 'Children', 'MemberOf', 'HasMember', 'Member', 'Members'])(
+      'rejects the RT alias %s',
+      async (alias) => {
+        await expect(callTool(rt, 'update_ticket', { id: 7, [alias]: 9 })).rejects.toThrow(
+          new RegExp(alias),
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      },
+    );
+
+    // create_ticket keeps the bare relations, because a new ticket has no links
+    // to remove. The guard belongs to updateTicket alone, and moving it into one
+    // of the helpers create and update share would silently break this.
+    it('still forwards a bare link relation on create_ticket', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: '7' }));
+      await callTool(rt, 'create_ticket', { Queue: 'General', Subject: 'Kickoff', RefersTo: 9 });
+
+      expect(requestBody().RefersTo).toBe(9);
+    });
+  });
+
   describe('unknown tools', () => {
     it('throws for a tool name that does not exist', async () => {
       await expect(callTool(rt, 'no_such_tool', {})).rejects.toThrow('Unknown tool: no_such_tool');
