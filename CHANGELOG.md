@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Internal
+- Split `src/index.ts`: the tool definitions and argument wiring moved to `src/tools.ts`, leaving `index.ts` as the server bootstrap. `callTool` now takes the `RTClient` as a parameter, which makes the tool schemas and argument pass-through testable (`src/__tests__/tools.test.ts`).
+
 ## [0.2.1] - 2026-03-13
 
 ### Fixed
