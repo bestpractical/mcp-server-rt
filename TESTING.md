@@ -333,13 +333,28 @@ afterwards — adding a link must never remove one.
 
 **Prompt:** `Replace ticket [A]'s references so it only refers to ticket [C]`
 
-**Expected:** A delete of the current links followed by an add, or the AI asking which
-links to remove. `update_ticket` does not accept a bare `RefersTo`; if the AI tries one
-it gets an error naming `AddRefersTo`/`DeleteRefersTo` and **no links change**. Verify in
-RT that nothing was unlinked by the rejected attempt.
+**Expected:** A `get_ticket` to read the links that are there, then a delete of those
+followed by an add — or the AI asking which links to remove. It must name the links it
+deletes rather than guessing at them. `update_ticket` does not accept a bare `RefersTo`;
+if the AI tries one it gets an error naming `AddRefersTo`/`DeleteRefersTo` and **no links
+change**. Verify in RT that nothing was unlinked by the rejected attempt.
 
-Repeat one of these with `DependsOn` and with `Parent`/`Child` to confirm the other
-relations behave the same way.
+Now give the ticket a child, and check the relation whose name changes between reading and
+writing: a child link is reported in `get_ticket` under `ref` `child`, but it is removed
+with `DeleteChild`.
+
+**Prompt:** `What is ticket [A] linked to?`
+
+**Expected:** The child is listed. The AI reads links from the `_hyperlinks` of the
+`get_ticket` response — there is no separate links tool, so an answer of "no links" means
+it did not look there.
+
+**Prompt:** `Ticket [A] should no longer have that child`
+
+**Expected:** `DeleteChild` with the child's ticket ID. Not `DeleteMemberOf`, not a bare
+`Child`, and not a delete aimed at the parent instead.
+
+Repeat one of these with `DependsOn` to confirm the other relations behave the same way.
 
 ---
 

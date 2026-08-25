@@ -280,7 +280,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'update_ticket',
-    description: 'Update an existing ticket. Pass each property to change as a top-level parameter (e.g. Due, Status, Owner) — do NOT use a nested "fields" object.',
+    description: 'Update an existing ticket. Pass each property to change as a top-level parameter (e.g. Due, Status, Owner) — do NOT use a nested "fields" object. ' +
+      'Links are changed only with the Add/Delete fields below: a bare relation name such as RefersTo, Parent or Children is refused, because RT would treat it as the complete list for that relation and silently remove every other link of the type.',
     annotations: { destructiveHint: true },
     inputSchema: {
       type: 'object',

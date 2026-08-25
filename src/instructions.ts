@@ -58,6 +58,18 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'so read that back, and if the label it names is not the one you asked for, say so rather ' +
     'than reporting the priority as set. Use the exact label RT shows on tickets in that queue, ' +
     'and send a number when you do not know it.\n\n' +
+    'TICKET LINKS: update_ticket changes links only through AddRefersTo and DeleteRefersTo, ' +
+    'and the matching Add/Delete pair for ReferredToBy, DependsOn, DependedOnBy, Parent and Child. ' +
+    'Do not pass a bare relation name such as RefersTo, Parent or Children to update_ticket: RT reads ' +
+    'that as "these are now the only links of this type" and silently removes the others, so ' +
+    'update_ticket refuses it and changes nothing. Each field takes one ticket ID, an array of IDs, ' +
+    'or an external URI, so add several links in one call rather than one call each. ' +
+    'To replace a link, delete the old one and add the new one. ' +
+    'A ticket\'s existing links are in the _hyperlinks of a get_ticket response, each carrying the ' +
+    'linked ticket\'s id and a "ref" naming the relation — "refers-to", "referred-to-by", ' +
+    '"depends-on", "depended-on-by", "parent" for what AddParent sets, and "child" for AddChild. ' +
+    'Read those before deleting, so you delete the link the user meant and leave the rest. ' +
+    'create_ticket does accept the bare relation names, because a new ticket has no links to remove.\n\n' +
     'REMINDERS: Reminders are tickets with Type = \'reminder\'. They are mini-tasks linked to a parent ticket ' +
     'via a RefersTo relationship and are displayed in the context of that parent ticket in the RT UI. ' +
     'Reminders have an Owner field — "set a reminder" means setting one for the current user. ' +

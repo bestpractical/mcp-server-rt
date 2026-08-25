@@ -90,6 +90,34 @@ describe('buildInstructions', () => {
     });
   });
 
+  // update_ticket refuses bare link relations because RT treats them as "these
+  // are now the only links of this type". The AI needs to know that before it
+  // tries one, not from the resulting error.
+  describe('ticket link guidance', () => {
+    it('names the incremental link fields', () => {
+      expect(instructions).toContain('AddRefersTo');
+      expect(instructions).toContain('DeleteRefersTo');
+    });
+
+    it('warns the AI off bare link relations on update_ticket', () => {
+      expect(instructions).toMatch(/bare relation/i);
+    });
+
+    it('says how to replace a link', () => {
+      expect(instructions).toMatch(/delete the old .* add the new/i);
+    });
+
+    // Deleting a link means naming it, so the AI has to be able to list the
+    // ones a ticket already has. They arrive under a "ref" whose name is not
+    // the name of the field that sets them.
+    it('says where a ticket\'s existing links can be read', () => {
+      expect(instructions).toMatch(/_hyperlinks of a get_ticket response/);
+      expect(instructions).toContain('"refers-to"');
+      expect(instructions).toContain('"parent"');
+      expect(instructions).toContain('"child"');
+    });
+  });
+
   describe('reminder status guidance', () => {
     // The instructions used to say a reminder's active status is "open".
     // The status a reminder starts in is set by the queue lifecycle —
