@@ -48,7 +48,7 @@ The staging directory approach ensures the bundle contains only runtime files (~
 
 ### 1. Prepare
 
-Ensure all changes are committed, tests pass, and version numbers are updated in `package.json`, `manifest.json`, `server.json`, and `CHANGELOG.md`.
+Ensure all changes are committed, tests pass, and version numbers are updated in `package.json`, `package-lock.json`, `manifest.json`, `server.json`, and `CHANGELOG.md`. Running `npm install` after bumping `package.json` updates the lockfile.
 
 ```bash
 npm run build
