@@ -233,6 +233,27 @@ describe('RTClient', () => {
       expect(url).toContain('/REST/2.0/ticket/7/comment');
       expect(options.method).toBe('POST');
     });
+
+    it('sends CustomFields in the request body', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await client.ticketComment(7, {
+        Content: 'Internal note',
+        CustomFields: { Category: 'Billing', 'Ticket Cost': 42 },
+      });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.CustomFields).toEqual({ Category: 'Billing', 'Ticket Cost': 42 });
+    });
+
+    it('omits CustomFields from the body when not provided', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await client.ticketComment(7, { Content: 'Internal note' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect('CustomFields' in body).toBe(false);
+    });
   });
 
   describe('ticketCorrespond', () => {
@@ -261,6 +282,27 @@ describe('RTClient', () => {
       const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(url).toContain('/REST/2.0/ticket/7/correspond');
       expect(options.method).toBe('POST');
+    });
+
+    it('sends CustomFields in the request body', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await client.ticketCorrespond(7, {
+        Content: 'Reply to requestor',
+        CustomFields: { Category: 'Billing' },
+      });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect(body.CustomFields).toEqual({ Category: 'Billing' });
+    });
+
+    it('omits CustomFields from the body when not provided', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await client.ticketCorrespond(7, { Content: 'Reply to requestor' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(options.body as string);
+      expect('CustomFields' in body).toBe(false);
     });
   });
 

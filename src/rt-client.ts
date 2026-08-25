@@ -151,6 +151,7 @@ export interface MessageFields {
   TimeTaken?: number;
   Status?: string;
   Attachments?: AttachmentInput[];
+  CustomFields?: Record<string, unknown>;
 }
 
 // Date fields that should be converted from local time to UTC before sending to RT

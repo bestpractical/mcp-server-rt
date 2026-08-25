@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { RTClient } from '../rt-client.js';
-import { callTool } from '../tools.js';
+import { TOOLS, callTool } from '../tools.js';
 
 // Mock global fetch so we can assert on the request the tool layer produces.
 // Using a real RTClient (rather than a stub) means these tests cover the whole
@@ -15,6 +16,16 @@ function mockResponse(body: unknown, status = 200) {
     statusText: status === 200 ? 'OK' : 'Error',
     json: () => Promise.resolve(body),
   });
+}
+
+function tool(name: string): Tool {
+  const found = TOOLS.find((t) => t.name === name);
+  if (!found) throw new Error(`No such tool: ${name}`);
+  return found;
+}
+
+function schemaProperties(name: string): Record<string, unknown> {
+  return (tool(name).inputSchema.properties ?? {}) as Record<string, unknown>;
 }
 
 function requestBody(callIndex = 0): Record<string, unknown> {
@@ -48,6 +59,37 @@ describe('tool layer', () => {
         TimeTaken: 15,
       });
     });
+
+    it('declares CustomFields in its input schema', () => {
+      expect(schemaProperties('add_comment')).toHaveProperty('CustomFields');
+    });
+
+    it('forwards CustomFields to the comment endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await callTool(rt, 'add_comment', {
+        id: 7,
+        Content: 'Internal note',
+        CustomFields: { Category: 'Billing' },
+      });
+
+      expect(requestBody().CustomFields).toEqual({ Category: 'Billing' });
+    });
+
+    it('sends no CustomFields key when the caller omits it', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await callTool(rt, 'add_comment', { id: 7, Content: 'Internal note' });
+
+      expect('CustomFields' in requestBody()).toBe(false);
+    });
+
+    // Some clients fill unused optional parameters with an explicit null, which
+    // JSON.stringify keeps. Treat that the same as omitting the field.
+    it('sends no CustomFields key when the caller passes null', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Comment added']));
+      await callTool(rt, 'add_comment', { id: 7, Content: 'Internal note', CustomFields: null });
+
+      expect('CustomFields' in requestBody()).toBe(false);
+    });
   });
 
   describe('add_reply', () => {
@@ -67,6 +109,35 @@ describe('tool layer', () => {
         TimeTaken: 15,
         Status: 'resolved',
       });
+    });
+
+    it('declares CustomFields in its input schema', () => {
+      expect(schemaProperties('add_reply')).toHaveProperty('CustomFields');
+    });
+
+    it('forwards CustomFields to the correspond endpoint', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await callTool(rt, 'add_reply', {
+        id: 7,
+        Content: 'Reply to requestor',
+        CustomFields: { Category: 'Billing' },
+      });
+
+      expect(requestBody().CustomFields).toEqual({ Category: 'Billing' });
+    });
+
+    it('sends no CustomFields key when the caller omits it', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await callTool(rt, 'add_reply', { id: 7, Content: 'Reply to requestor' });
+
+      expect('CustomFields' in requestBody()).toBe(false);
+    });
+
+    it('sends no CustomFields key when the caller passes null', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(['Correspondence added']));
+      await callTool(rt, 'add_reply', { id: 7, Content: 'Reply to requestor', CustomFields: null });
+
+      expect('CustomFields' in requestBody()).toBe(false);
     });
   });
 

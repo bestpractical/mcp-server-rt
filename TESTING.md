@@ -134,6 +134,28 @@ These tests require a running RT instance and a configured MCP connection. Run t
 
 **Expected:** `add_reply` called; reply visible to requestor in RT.
 
+**Prompt:** `Add a comment to ticket [ID] saying "Investigated" and set the [CF name] custom field to [value]`
+
+**Expected:** A single `add_comment` call carrying both `Content` and `CustomFields` — not a
+separate `update_ticket` call afterwards. RT still records the custom field changes as their own
+`CustomField` transactions following the `Comment` transaction; the point is that one tool call
+does both. Multi-value fields take an array (`{"Test Tags": ["Red", "Blue"]}`). Works the same
+way with `add_reply`.
+
+**Prompt:** (on a ticket whose multi-value `[CF name]` already holds `[existing value]`)
+`Add a comment to ticket [ID] and also tag it [new value]`
+
+**Expected:** The existing value survives. RT replaces the whole value set for a multi-value
+custom field, so the AI must read the current values first and send both
+(`{"Test Tags": ["Red", "Blue"]}`), not just the new one. If `[existing value]` is gone
+afterwards, the `CustomFields` tool description is not steering the AI correctly.
+
+**Prompt:** `Add a comment to ticket [ID] and set the [misspelled CF name] custom field to [value]`
+
+**Expected:** RT ignores custom field names it does not recognize and still returns success, so
+the tool call succeeds with nothing set. The AI should not claim the field was set — the
+description warns that a success response does not confirm it.
+
 ---
 
 ## 10. Attachments

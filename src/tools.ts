@@ -308,6 +308,10 @@ export const TOOLS: Tool[] = [
           description: 'Content MIME type (default text/plain)',
         },
         TimeTaken: { type: 'integer', description: 'Minutes of work time to log' },
+        CustomFields: {
+          type: 'object',
+          description: 'Ticket custom field values to set while adding this comment, as {CF_name: value}. Each value replaces everything the field currently holds, so for a multi-value field pass an array of the complete set you want ({"Tags": ["Red", "Blue"]}) — to add to existing values, read them with get_ticket first and include them. RT silently ignores names it does not recognize, including transaction custom fields (not supported here), so a success response does not confirm a field was set. Use get_queue_fields to see the custom fields available on the ticket\'s queue.',
+        },
         Attachments: {
           type: 'array',
           description: 'Files to attach. Provide either FilePath (local file path, server reads and encodes it) or FileContent (pre-encoded MIME Base64). FileName and FileType are optional with FilePath and are inferred from the path.',
@@ -343,6 +347,10 @@ export const TOOLS: Tool[] = [
         Status: {
           type: 'string',
           description: 'Optionally change ticket status (e.g. resolved)',
+        },
+        CustomFields: {
+          type: 'object',
+          description: 'Ticket custom field values to set while sending this reply, as {CF_name: value}. Each value replaces everything the field currently holds, so for a multi-value field pass an array of the complete set you want ({"Tags": ["Red", "Blue"]}) — to add to existing values, read them with get_ticket first and include them. RT silently ignores names it does not recognize, including transaction custom fields (not supported here), so a success response does not confirm a field was set. Use get_queue_fields to see the custom fields available on the ticket\'s queue.',
         },
         Attachments: {
           type: 'array',
@@ -441,6 +449,9 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
         Content: args.Content as string | undefined,
         ContentType: args.ContentType as 'text/plain' | 'text/html' | undefined,
         TimeTaken: args.TimeTaken as number | undefined,
+        // Clients that fill optional params with an explicit null would otherwise
+        // send "CustomFields": null; only undefined is dropped by JSON.stringify.
+        CustomFields: (args.CustomFields ?? undefined) as Record<string, unknown> | undefined,
         Attachments: args.Attachments as AttachmentInput[] | undefined,
       });
 
@@ -450,6 +461,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
         ContentType: args.ContentType as 'text/plain' | 'text/html' | undefined,
         TimeTaken: args.TimeTaken as number | undefined,
         Status: args.Status as string | undefined,
+        CustomFields: (args.CustomFields ?? undefined) as Record<string, unknown> | undefined,
         Attachments: args.Attachments as AttachmentInput[] | undefined,
       });
 
