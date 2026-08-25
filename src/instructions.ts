@@ -48,6 +48,16 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'markup as &lt; and &gt; yourself — an address like &lt;bob@example.com&gt; or a placeholder ' +
     'like &lt;PID&gt; is lost otherwise, in the Description and in any custom field whose ' +
     'ContentFormat is "html", "plain-text-multiline" or "wikitext".\n\n' +
+    'PRIORITY: RT stores priority as a number, and an installation can map labels like Low, ' +
+    'Medium, High onto numbers, per queue. create_ticket and update_ticket take either form. ' +
+    'RT resolves a label itself, and it does not reject one that is not in the queue\'s mapping, ' +
+    'nor a label sent to an installation that has no mapping at all: it sets the priority to 0, ' +
+    'the lowest, and still reports success. Nothing in the response flags this as an error, so ' +
+    'never treat having sent a label as having set it. RT does report the change it made, naming ' +
+    'the label it landed on — "Priority changed from X to Y", carried as PrioritySet on create — ' +
+    'so read that back, and if the label it names is not the one you asked for, say so rather ' +
+    'than reporting the priority as set. Use the exact label RT shows on tickets in that queue, ' +
+    'and send a number when you do not know it.\n\n' +
     'REMINDERS: Reminders are tickets with Type = \'reminder\'. They are mini-tasks linked to a parent ticket ' +
     'via a RefersTo relationship and are displayed in the context of that parent ticket in the RT UI. ' +
     'Reminders have an Owner field — "set a reminder" means setting one for the current user. ' +

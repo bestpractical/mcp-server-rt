@@ -73,6 +73,23 @@ describe('buildInstructions', () => {
     );
   });
 
+  // RT resolves priority labels itself and treats one it cannot find as 0, the
+  // lowest priority, reporting success either way. The server has no way to
+  // detect that, so the AI has to be told to verify from what RT reports back
+  // rather than assume the label it sent is the one that landed.
+  describe('priority guidance', () => {
+    it('warns that an unrecognized label silently becomes the lowest priority', () => {
+      expect(instructions).toMatch(/PRIORITY:/);
+      expect(instructions).toMatch(/does not reject/i);
+      expect(instructions).toMatch(/reports success/i);
+    });
+
+    it('points the AI at the change RT reports rather than the label it sent', () => {
+      expect(instructions).toMatch(/Priority changed from X to Y/);
+      expect(instructions).toContain('PrioritySet');
+    });
+  });
+
   describe('reminder status guidance', () => {
     // The instructions used to say a reminder's active status is "open".
     // The status a reminder starts in is set by the queue lifecycle —

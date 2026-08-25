@@ -88,7 +88,7 @@ export interface CreateTicketFields {
   Attachments?: AttachmentInput[];
   Description?: string;
   Status?: string;
-  Priority?: number;
+  Priority?: number | string;
   Owner?: string;
   Requestor?: string | string[];
   Cc?: string | string[];
@@ -112,7 +112,7 @@ export interface UpdateTicketFields {
   Type?: string;
   Description?: string;
   Status?: string;
-  Priority?: number;
+  Priority?: number | string;
   Owner?: string;
   Queue?: string;
   CustomFields?: Record<string, unknown>;
@@ -237,6 +237,16 @@ function formatDescription(fields: Record<string, unknown>): Record<string, unkn
   return { ...fields, Description: htmlFromPlainText(description) };
 }
 
+// A Priority that RT has to look up in the queue's PriorityAsString mapping
+// rather than store directly. This has to draw the line exactly where RT's own
+// SetPriority draws it — /^\d+$/ on the raw value — or the two paths disagree:
+// anything this calls a value goes into the create body untouched, while RT
+// resolves the same string as a label on update. That splits "-5" and " 80 "
+// two ways, stored verbatim on create and coerced to 0 on update.
+function isPriorityLabel(priority: number | string | undefined): priority is string {
+  return typeof priority === 'string' && !/^\d+$/.test(priority);
+}
+
 // Date fields that should be converted from local time to UTC before sending to RT
 const DATE_FIELDS = new Set(['Due', 'Starts', 'Started', 'Told']);
 
@@ -353,12 +363,50 @@ export class RTClient {
     }, opts.subfields);
   }
 
-  createTicket(fields: CreateTicketFields): Promise<unknown> {
+  async createTicket(fields: CreateTicketFields): Promise<unknown> {
+    // RT::Ticket::Create writes Priority straight into an integer column and
+    // never resolves a PriorityAsString label, so a label has to be applied
+    // afterwards through SetPriority, which resolves it against the queue's
+    // own mapping. Numbers (including numeric strings) go in the create body
+    // as before.
+    const deferredPriority = isPriorityLabel(fields.Priority) ? fields.Priority : undefined;
+    const createFields = deferredPriority === undefined
+      ? fields
+      : { ...fields, Priority: undefined };
+
     const body = {
-      ...formatDescription(convertDates(fields)),
+      ...formatDescription(convertDates(createFields)),
       Attachments: fields.Attachments?.map(resolveAttachment),
     };
-    return this.request('POST', 'ticket', body);
+    const created = await this.request('POST', 'ticket', body);
+
+    if (deferredPriority === undefined) return created;
+
+    // Number('') is 0, not NaN, so an id that came back blank has to be ruled
+    // out by value rather than by isNaN — otherwise the follow-up would PUT to
+    // ticket/0.
+    const id = Number((created as { id?: string | number })?.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return { ...(created as object), PriorityNotSet: 'Could not determine the new ticket ID' };
+    }
+
+    // The ticket exists either way, so report a failed priority update rather
+    // than throwing, which would suggest nothing was created.
+    try {
+      const result = await this.updateTicket(id, { Priority: deferredPriority });
+
+      // RT resolves the label itself and does not reject one it cannot find in
+      // the mapping — SetPriority falls back to 0, the lowest priority, and
+      // reports success. The server cannot tell the two apart, because REST2
+      // exposes neither the queue's mapping nor a ticket's PriorityAsString.
+      // What RT does report is the change it made, naming the label it landed
+      // on, so pass that back rather than swallowing it: it is the only way the
+      // caller can see that "High" became "Low".
+      return { ...(created as object), PrioritySet: result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ...(created as object), PriorityNotSet: message };
+    }
   }
 
   updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
