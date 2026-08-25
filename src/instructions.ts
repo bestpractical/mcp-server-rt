@@ -18,10 +18,11 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'the REST API endpoint (/REST/2.0/ticket/TICKET_ID). ' +
     `The user's local timezone is ${timezone}. When setting date fields (Due, Starts, Started, Told), ` +
     'always provide dates in the user\'s local time — the server converts them to UTC automatically.\n\n' +
-    'TICKET DISPLAY: When presenting search results, always request ' +
-    'fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set ' +
-    '(e.g. add TimeLeft when SLA is relevant, drop Requestor for personal task searches). ' +
-    'Always include subfields={"Queue":"Name","Owner":"Name"} to get human-readable names instead of object stubs. ' +
+    'TICKET DISPLAY: search_tickets already requests a useful default field set, with Queue and ' +
+    'Owner expanded to names rather than object stubs. Pass fields or subfields only when the ' +
+    'context calls for a different set (e.g. add TimeLeft when SLA is relevant, or narrow the set ' +
+    'for a personal task view); each replaces the default rather than adding to it, so list every ' +
+    'field you want. The tool schema names the current defaults. ' +
     'Present ticket results on one line if it fits on the current display. ' +
     'Use a two-row display if needed to show all of the requested ticket fields. ' +
     'Omit empty or unset fields rather than showing blank values.\n\n' +

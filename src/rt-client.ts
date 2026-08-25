@@ -54,6 +54,7 @@ export interface HistoryOptions {
 export interface UserSearchOptions {
   per_page?: number;
   page?: number;
+  fields?: string;
 }
 
 // A custom field reference as it appears on a queue record. Queue-level
@@ -167,6 +168,18 @@ export interface MessageFields {
   Attachments?: AttachmentInput[];
   CustomFields?: Record<string, unknown>;
 }
+
+// RT's collection endpoints return id-only stubs unless asked for fields, so
+// every collection call sends a default set. Callers can override any of these.
+const DEFAULT_FIELDS = {
+  // Matches the set the AI instructions prescribe for presenting search results
+  tickets: 'Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due',
+  // Without these the Queue and Owner of each result are object stubs
+  ticketSubfields: { Queue: 'Name', Owner: 'Name' },
+  history: 'Type,Field,OldValue,NewValue,Created,Creator',
+  attachments: 'Filename,ContentType,ContentLength,Subject',
+  users: 'Name,RealName,EmailAddress,Disabled',
+};
 
 // How RT renders a custom field value, keyed by CF type. RT dispatches display
 // to a ShowCustomField<Type> component and HTML-escapes anything with no such
@@ -331,8 +344,8 @@ export class RTClient {
       order: opts.order,
       per_page: opts.per_page,
       page: opts.page,
-      fields: opts.fields,
-    }, opts.subfields);
+      fields: opts.fields ?? DEFAULT_FIELDS.tickets,
+    }, opts.subfields ?? DEFAULT_FIELDS.ticketSubfields);
   }
 
   getTicket(id: number, opts: GetTicketOptions = {}): Promise<unknown> {
@@ -357,7 +370,7 @@ export class RTClient {
     return this.request('GET', `ticket/${id}/history`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
-      fields: opts.fields,
+      fields: opts.fields ?? DEFAULT_FIELDS.history,
     });
   }
 
@@ -379,6 +392,7 @@ export class RTClient {
     return this.request('GET', `ticket/${id}/attachments`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
+      fields: opts.fields ?? DEFAULT_FIELDS.attachments,
     });
   }
 
@@ -483,6 +497,7 @@ export class RTClient {
     return this.request('POST', 'users', queryArray, {
       per_page: opts.per_page,
       page: opts.page,
+      fields: opts.fields ?? DEFAULT_FIELDS.users,
     });
   }
 

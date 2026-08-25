@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Collection tools no longer return id-only stubs. RT's collection endpoints omit every field unless asked for one, so `get_ticket_attachments` returned no names, types, or sizes, `lookup_user` returned no real names or email addresses, and `search_tickets` and `get_ticket_history` returned nothing but IDs whenever the AI omitted `fields`. Each now sends a sensible default that the caller can override, and `search_tickets` also expands Queue and Owner to names by default. `get_ticket_attachments` and `lookup_user` gained a `fields` parameter to override theirs.
+
 ### Improved
 - Guidance and handling for HTML versus plain text fields. Ticket `Description` is HTML, so a bare newline rendered as nothing and multi-line text arrived as one run-on paragraph; a `Description` that is plain text with line breaks and no tag RT would render is now converted to paragraphs, with its angle brackets escaped so RT keeps them, while anything containing real markup is passed through untouched. `get_queue_fields` reports a `ContentFormat` for every custom field — `html`, `plain-text-multiline`, `plain-text`, `wikitext`, `file`, `date` or `datetime` — since RT's `Text`, `HTML`, and `Freeform` types render differently and the type name alone does not say what to send. The AI instructions describe each format, and are explicit that while RT escapes a bare `<`, `&` or `>` in prose, it silently deletes anything that parses as a tag it does not allow along with the text inside it — so an address like `<bob@example.com>` has to be escaped or it is lost with no error.
 

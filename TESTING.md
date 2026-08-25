@@ -24,11 +24,14 @@ These tests require a running RT instance and a configured MCP connection. Run t
 **Prompt:** `Show me the last 5 tickets`
 
 **Expected:**
-- Calls `search_tickets` with `fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due`
-- Includes `subfields={"Queue":"Name","Owner":"Name"}` so Queue and Owner display as human-readable names
-- Results show all those fields (omitting blanks)
+- Results show Subject, Status, Queue, Owner, Requestor, Priority, LastUpdated and Due (omitting blanks)
+- Queue and Owner read as names, not object stubs like `{"id": 1, "type": "queue"}`
 - Each ticket is displayed on one or two lines (not a bare list of IDs)
 - Ticket IDs link to the RT web UI (`/Ticket/Display.html?id=...`), not the REST API
+
+The server sends that field set itself, so the results should be the same whether or not the tool
+call carries a `fields` parameter. A call with no `fields` at all is the case worth watching: it is
+what used to come back as bare IDs.
 
 ---
 
@@ -56,6 +59,10 @@ These tests require a running RT instance and a configured MCP connection. Run t
 - Calls `get_current_user` to resolve "me"
 - Uses `Owner = 'your-username'` in the query
 - `Requestor` field may be dropped since this is a personal task view
+
+A narrowed set replaces the default rather than subtracting from it, so a call that drops
+`Requestor` has to list every other field it still wants. Watch for one that passes a short
+`fields` and loses Subject or Status along with it.
 
 **Prompt:** `Show me open support tickets and who requested them`
 
@@ -181,7 +188,9 @@ description warns that a success response does not confirm it.
 
 **Prompt:** `What attachments are on ticket [ID]?`
 
-**Expected:** Lists attachment names, types, and sizes.
+**Expected:** Lists attachment names, types, and sizes — not a bare list of IDs. Note that an
+email body part legitimately has an empty `Filename`; the `Subject` and `ContentType` should
+still identify it.
 
 **Prompt:** `Save the attachment [name] from ticket [ID] to my Desktop`
 
@@ -197,7 +206,13 @@ description warns that a success response does not confirm it.
 
 **Prompt:** `Look up user [name or email]`
 
-**Expected:** Returns matching RT user accounts.
+**Expected:** Returns matching accounts with real names and email addresses, not just usernames.
+
+**Prompt:** `What has happened on ticket [ID]?`
+
+**Expected:** The history is summarised from one `get_ticket_history` call — each entry showing
+its type, the field changed, and the new value. The AI should not need a `get_transaction` call
+per row just to learn what each entry was.
 
 **Prompt:** `What custom fields does the [queue name] queue have?`
 

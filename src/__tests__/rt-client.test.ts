@@ -76,6 +76,92 @@ describe('RTClient', () => {
     });
   });
 
+  // RT's collection endpoints return id-only stubs unless a fields parameter is
+  // supplied, so these tools returned data the AI could not use.
+  describe('collection defaults', () => {
+    function params(callIndex = 0): URLSearchParams {
+      const [url] = mockFetch.mock.calls[callIndex] as [string];
+      return new URL(url).searchParams;
+    }
+
+    it('searchTickets requests a useful default field set', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.searchTickets('id > 0');
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Subject');
+      expect(fields).toContain('Status');
+      expect(fields).toContain('Queue');
+    });
+
+    it('searchTickets expands Queue and Owner names by default', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.searchTickets('id > 0');
+
+      expect(params().get('fields[Queue]')).toBe('Name');
+      expect(params().get('fields[Owner]')).toBe('Name');
+    });
+
+    // Both fields and subfields replace the default outright rather than
+    // merging with it. fields has to — it is one RT parameter — and subfields
+    // follows so the two behave the same way. The tool schemas say so.
+    it('searchTickets lets the caller override the defaults', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.searchTickets('id > 0', {
+        fields: 'Subject',
+        subfields: { Queue: 'Name,Description' },
+      });
+
+      expect(params().get('fields')).toBe('Subject');
+      expect(params().get('fields[Queue]')).toBe('Name,Description');
+      expect(params().has('fields[Owner]')).toBe(false);
+    });
+
+    it('getTicketHistory requests the transaction detail fields', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.getTicketHistory(7);
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Type');
+      expect(fields).toContain('NewValue');
+      expect(fields).toContain('Created');
+    });
+
+    it('getTicketAttachments requests names, types and sizes', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.getTicketAttachments(7);
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Filename');
+      expect(fields).toContain('ContentType');
+      expect(fields).toContain('ContentLength');
+    });
+
+    it('getTicketAttachments lets the caller override the default', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.getTicketAttachments(7, { fields: 'Filename' });
+
+      expect(params().get('fields')).toBe('Filename');
+    });
+
+    it('lookupUser requests names and email addresses', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.lookupUser('root');
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Name');
+      expect(fields).toContain('RealName');
+      expect(fields).toContain('EmailAddress');
+    });
+
+    it('lookupUser lets the caller override the default', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.lookupUser('root', { fields: 'Name' });
+
+      expect(params().get('fields')).toBe('Name');
+    });
+  });
+
   describe('getTicket', () => {
     it('passes fields param in URL', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));

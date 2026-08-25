@@ -14,7 +14,8 @@ export const TOOLS: Tool[] = [
       'Key syntax notes: Status has meta-values __Active__ and __Inactive__ that match all active/inactive ' +
       'statuses across lifecycles (e.g. Status = \'__Active__\' rather than Status = \'open\'). ' +
       "Basic examples: \"Queue = 'General' AND Owner = 'Nobody'\", \"Subject LIKE 'login'\". " +
-      'Always include fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set.',
+      'A useful default field set is sent automatically, with Queue and Owner expanded to names, ' +
+      'so pass fields or subfields only when the context calls for a different set.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -24,8 +25,8 @@ export const TOOLS: Tool[] = [
         order: { type: 'string', enum: ['ASC', 'DESC'], description: 'Sort direction' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
-        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}' },
+        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due) rather than adding to it.' },
+        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}. Replaces the default ({"Queue":"Name","Owner":"Name"}), so list every field you want expanded.' },
       },
       required: ['query'],
     },
@@ -70,7 +71,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
+        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Type,Field,OldValue,NewValue,Created,Creator) rather than adding to it.' },
       },
       required: ['id'],
     },
@@ -85,6 +86,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
+        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Filename,ContentType,ContentLength,Subject) rather than adding to it.' },
       },
       required: ['id'],
     },
@@ -176,6 +178,7 @@ export const TOOLS: Tool[] = [
         query: { type: 'string', description: 'Name or email fragment to search for' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
+        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Name,RealName,EmailAddress,Disabled) rather than adding to it.' },
       },
       required: ['query'],
     },
@@ -419,6 +422,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       return rt.getTicketAttachments(args.id as number, {
         per_page: args.per_page as number | undefined,
         page: args.page as number | undefined,
+        fields: args.fields as string | undefined,
       });
 
     case 'get_attachment':
@@ -450,6 +454,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       return rt.lookupUser(args.query as string, {
         per_page: args.per_page as number | undefined,
         page: args.page as number | undefined,
+        fields: args.fields as string | undefined,
       });
 
     case 'get_queue_fields':
