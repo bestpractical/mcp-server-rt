@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { AttachmentInput, RTClient } from './rt-client.js';
+import { AttachmentInput, DEFAULT_FIELDS, RTClient } from './rt-client.js';
 
 export const TOOLS: Tool[] = [
   // -- Read-only tools --
@@ -25,8 +25,8 @@ export const TOOLS: Tool[] = [
         order: { type: 'string', enum: ['ASC', 'DESC'], description: 'Sort direction' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due) rather than adding to it.' },
-        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}. Replaces the default ({"Queue":"Name","Owner":"Name"}), so list every field you want expanded.' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.tickets}) rather than adding to it.` },
+        subfields: { type: 'object', description: `Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}. Replaces the default (${JSON.stringify(DEFAULT_FIELDS.ticketSubfields)}), so list every field you want expanded.` },
       },
       required: ['query'],
     },
@@ -78,7 +78,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Type,Field,OldValue,NewValue,Created,Creator) rather than adding to it.' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.history}) rather than adding to it.` },
       },
       required: ['id'],
     },
@@ -93,7 +93,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Filename,ContentType,ContentLength,Subject) rather than adding to it.' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.attachments}) rather than adding to it.` },
       },
       required: ['id'],
     },
@@ -149,7 +149,7 @@ export const TOOLS: Tool[] = [
       properties: {
         fields: {
           type: 'string',
-          description: 'Comma-separated fields to include (default: Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress)',
+          description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.queues}) rather than adding to it.`,
         },
       },
     },
@@ -185,7 +185,7 @@ export const TOOLS: Tool[] = [
         query: { type: 'string', description: 'Name or email fragment to search for' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated fields to include. Replaces the default (Name,RealName,EmailAddress,Disabled) rather than adding to it.' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.users}) rather than adding to it.` },
       },
       required: ['query'],
     },

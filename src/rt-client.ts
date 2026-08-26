@@ -164,15 +164,18 @@ export interface MessageFields {
 }
 
 // RT's collection endpoints return id-only stubs unless asked for fields, so
-// every collection call sends a default set. Callers can override any of these.
-const DEFAULT_FIELDS = {
-  // Matches the set the AI instructions prescribe for presenting search results
+// every collection call sends a default set. Callers can override any of these,
+// and passing fields replaces the set rather than adding to it. The tool schemas
+// quote these values back to the AI, so this is the only place they are written.
+export const DEFAULT_FIELDS = {
+  // Enough to identify and triage a ticket from a list without opening it
   tickets: 'Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due',
   // Without these the Queue and Owner of each result are object stubs
   ticketSubfields: { Queue: 'Name', Owner: 'Name' },
   history: 'Type,Field,OldValue,NewValue,Created,Creator',
   attachments: 'Filename,ContentType,ContentLength,Subject',
   users: 'Name,RealName,EmailAddress,Disabled',
+  queues: 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress',
 };
 
 // How RT renders a custom field value, keyed by CF type. RT dispatches display
@@ -432,7 +435,7 @@ export class RTClient {
     return this.request('GET', `queue/${idOrName}`);
   }
 
-  listQueues(fields: string | undefined = 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress'): Promise<unknown> {
+  listQueues(fields: string | undefined = DEFAULT_FIELDS.queues): Promise<unknown> {
     return this.request('GET', 'queues/all', undefined, { fields });
   }
 
