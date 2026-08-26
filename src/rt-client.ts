@@ -36,24 +36,19 @@ function resolveAttachment(a: AttachmentInput): { FileName: string; FileType: st
   return { FileName: a.FileName, FileType: a.FileType, FileContent: a.FileContent };
 }
 
-export interface SearchOptions {
+// Shared by every paginated collection endpoint. Each one sends its own
+// default field set (see DEFAULT_FIELDS); fields replaces that default rather
+// than adding to it.
+export interface CollectionOptions {
+  per_page?: number;
+  page?: number;
+  fields?: string;
+}
+
+export interface SearchOptions extends CollectionOptions {
   orderby?: string;
   order?: 'ASC' | 'DESC';
-  per_page?: number;
-  page?: number;
-  fields?: string;
   subfields?: Record<string, string>;
-}
-
-export interface HistoryOptions {
-  per_page?: number;
-  page?: number;
-  fields?: string;
-}
-
-export interface UserSearchOptions {
-  per_page?: number;
-  page?: number;
 }
 
 // A custom field reference as it appears on a queue record. Queue-level
@@ -167,6 +162,21 @@ export interface MessageFields {
   Attachments?: AttachmentInput[];
   CustomFields?: Record<string, unknown>;
 }
+
+// RT's collection endpoints return id-only stubs unless asked for fields, so
+// every collection call sends a default set. Callers can override any of these,
+// and passing fields replaces the set rather than adding to it. The tool schemas
+// quote these values back to the AI, so this is the only place they are written.
+export const DEFAULT_FIELDS = {
+  // Enough to identify and triage a ticket from a list without opening it
+  tickets: 'Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due',
+  // Without these the Queue and Owner of each result are object stubs
+  ticketSubfields: { Queue: 'Name', Owner: 'Name' },
+  history: 'Type,Field,OldValue,NewValue,Created,Creator',
+  attachments: 'Filename,ContentType,ContentLength,Subject',
+  users: 'Name,RealName,EmailAddress,Disabled',
+  queues: 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress',
+};
 
 // How RT renders a custom field value, keyed by CF type. RT dispatches display
 // to a ShowCustomField<Type> component and HTML-escapes anything with no such
@@ -331,8 +341,8 @@ export class RTClient {
       order: opts.order,
       per_page: opts.per_page,
       page: opts.page,
-      fields: opts.fields,
-    }, opts.subfields);
+      fields: opts.fields ?? DEFAULT_FIELDS.tickets,
+    }, opts.subfields ?? DEFAULT_FIELDS.ticketSubfields);
   }
 
   getTicket(id: number, opts: GetTicketOptions = {}): Promise<unknown> {
@@ -353,11 +363,11 @@ export class RTClient {
     return this.request('PUT', `ticket/${id}`, formatDescription(convertDates(fields)));
   }
 
-  getTicketHistory(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+  getTicketHistory(id: number, opts: CollectionOptions = {}): Promise<unknown> {
     return this.request('GET', `ticket/${id}/history`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
-      fields: opts.fields,
+      fields: opts.fields ?? DEFAULT_FIELDS.history,
     });
   }
 
@@ -375,10 +385,11 @@ export class RTClient {
 
   // Attachment operations
 
-  getTicketAttachments(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+  getTicketAttachments(id: number, opts: CollectionOptions = {}): Promise<unknown> {
     return this.request('GET', `ticket/${id}/attachments`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
+      fields: opts.fields ?? DEFAULT_FIELDS.attachments,
     });
   }
 
@@ -424,7 +435,7 @@ export class RTClient {
     return this.request('GET', `queue/${idOrName}`);
   }
 
-  listQueues(fields: string | undefined = 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress'): Promise<unknown> {
+  listQueues(fields: string | undefined = DEFAULT_FIELDS.queues): Promise<unknown> {
     return this.request('GET', 'queues/all', undefined, { fields });
   }
 
@@ -475,7 +486,7 @@ export class RTClient {
 
   // User operations
 
-  lookupUser(query: string, opts: UserSearchOptions = {}): Promise<unknown> {
+  lookupUser(query: string, opts: CollectionOptions = {}): Promise<unknown> {
     const queryArray = [
       { field: 'Name', operator: 'LIKE', value: query },
       { field: 'EmailAddress', operator: 'LIKE', value: query, entry_aggregator: 'OR' },
@@ -483,6 +494,7 @@ export class RTClient {
     return this.request('POST', 'users', queryArray, {
       per_page: opts.per_page,
       page: opts.page,
+      fields: opts.fields ?? DEFAULT_FIELDS.users,
     });
   }
 

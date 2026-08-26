@@ -16,6 +16,25 @@ describe('buildInstructions', () => {
     expect(instructions).toContain('America/Los_Angeles');
   });
 
+  // search_tickets sends a default field set and both fields and subfields
+  // replace it outright rather than merging with it. An AI that reads them as
+  // additive asks for one field and loses the rest of the row — the id-only
+  // results the default set exists to prevent.
+  describe('ticket display guidance', () => {
+    it('says fields and subfields replace the default rather than adding to it', () => {
+      const clause = instructions.match(/[^.]*replaces the default[^.]*/i)?.[0] ?? '';
+
+      expect(clause).toMatch(/\bfields\b/);
+      expect(clause).toMatch(/\bsubfields\b/);
+    });
+
+    // Knowing the default is replaced is only useful with the consequence: a
+    // narrowed set has to name every field it keeps, not just the ones added.
+    it('tells the AI to list every field it still wants', () => {
+      expect(instructions).toMatch(/list every field/i);
+    });
+  });
+
   // Description and HTML custom fields render markup raw, so a bare newline
   // shows nothing, while other fields display the value as typed.
   describe('content formatting guidance', () => {

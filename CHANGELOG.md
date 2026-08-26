@@ -2,7 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- Collection tools no longer return id-only stubs. RT's collection endpoints omit every field unless asked for one, so `get_ticket_attachments` returned no names, types, or sizes, `lookup_user` returned no real names or email addresses, and `search_tickets` and `get_ticket_history` returned nothing but IDs whenever the AI omitted `fields`. Each now sends a sensible default that the caller can override, and `search_tickets` also expands Queue and Owner to names by default. `get_ticket_attachments` and `lookup_user` gained a `fields` parameter to override theirs. Each tool's schema names its own default and says that `fields` — and `subfields` on `search_tickets` — replaces that default rather than adding to it, so a narrowed set has to list every field it keeps.
+
 ### Improved
+- `get_ticket_history` tells the AI which entries carry raw IDs. Most transactions name the field changed in `Field` and carry its old and new values, but two kinds do not: an owner or watcher change (`SetWatcher`, `AddWatcher`, `DelWatcher`) stores a numeric user ID in `OldValue` and `NewValue`, and a custom field change stores the field's numeric ID in `Field` with the values in `OldReference` and `NewReference`, leaving `OldValue` and `NewValue` empty. Nothing here resolves a user ID to a name — `lookup_user` matches on `Name` and `EmailAddress` — so the AI is told to describe such a change rather than present a username it had no way to look up. `get_queue_fields` does map a custom field ID to its name, and the description says so.
+- The ticket display guidance gives the reason a field would be dropped from the default set instead of only naming a situation: `Owner` repeats the question back when the user asked for their own tickets, and `Requestor` earns nothing when they are scanning their task list for what to do next rather than for who asked. The guidance no longer restates the default field list, which reaches the AI through the tool schemas instead.
 - Guidance and handling for HTML versus plain text fields. Ticket `Description` is HTML, so a bare newline rendered as nothing and multi-line text arrived as one run-on paragraph; a `Description` that is plain text with line breaks and no tag RT would render is now converted to paragraphs, with its angle brackets escaped so RT keeps them, while anything containing real markup is passed through untouched. `get_queue_fields` reports a `ContentFormat` for every custom field — `html`, `plain-text-multiline`, `plain-text`, `wikitext`, `file`, `date` or `datetime` — since RT's `Text`, `HTML`, and `Freeform` types render differently and the type name alone does not say what to send. The AI instructions describe each format, and are explicit that while RT escapes a bare `<`, `&` or `>` in prose, it silently deletes anything that parses as a tag it does not allow along with the text inside it — so an address like `<bob@example.com>` has to be escaped or it is lost with no error.
 
 ### Fixed
@@ -19,6 +24,8 @@
 - `update_ticket` now tells the AI that a custom field value replaces the field's entire contents, so setting one value on a multi-value field no longer silently drops the others.
 
 ### Internal
+- `HistoryOptions` and `UserSearchOptions` collapsed into one `CollectionOptions`, shared by `get_ticket_history`, `get_ticket_attachments` and `lookup_user`, with `SearchOptions` extending it. Adding `fields` to the user options had made the two identical, and `get_ticket_attachments` had always borrowed the history type for a third purpose.
+- The tool schemas interpolate `DEFAULT_FIELDS` rather than restating each default set in prose, so every default field list is written in exactly one place — `list_queues` included, whose default moved off the `listQueues` signature. The rendered descriptions are unchanged apart from `list_queues`, which now states the replace behaviour like the rest.
 - Split `src/index.ts`: the tool definitions and argument wiring moved to `src/tools.ts`, leaving `index.ts` as the server bootstrap. `callTool` now takes the `RTClient` as a parameter, which makes the tool schemas and argument pass-through testable (`src/__tests__/tools.test.ts`).
 
 ## [0.2.1] - 2026-03-13

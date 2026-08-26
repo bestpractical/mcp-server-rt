@@ -18,10 +18,15 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'the REST API endpoint (/REST/2.0/ticket/TICKET_ID). ' +
     `The user's local timezone is ${timezone}. When setting date fields (Due, Starts, Started, Told), ` +
     'always provide dates in the user\'s local time — the server converts them to UTC automatically.\n\n' +
-    'TICKET DISPLAY: When presenting search results, always request ' +
-    'fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set ' +
-    '(e.g. add TimeLeft when SLA is relevant, drop Requestor for personal task searches). ' +
-    'Always include subfields={"Queue":"Name","Owner":"Name"} to get human-readable names instead of object stubs. ' +
+    'TICKET DISPLAY: search_tickets already requests a useful default field set, with Queue and ' +
+    'Owner expanded to names rather than object stubs. Pass fields or subfields only when the ' +
+    'context calls for a different set: add a field the question turns on, such as TimeLeft when ' +
+    'SLA is relevant, and drop one that will not tell the user anything — Owner when they asked ' +
+    'for their own tickets and every row is theirs, or Requestor when they are scanning their own ' +
+    'task list for what to do next rather than for who asked. A row has to fit a narrow display, ' +
+    'so every column shown should be one they need. Each of fields and subfields replaces the ' +
+    'default rather than adding to it, so list every field you want, and the tool schema names ' +
+    'the defaults. ' +
     'Present ticket results on one line if it fits on the current display. ' +
     'Use a two-row display if needed to show all of the requested ticket fields. ' +
     'Omit empty or unset fields rather than showing blank values.\n\n' +

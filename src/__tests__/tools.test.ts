@@ -33,6 +33,11 @@ function requestBody(callIndex = 0): Record<string, unknown> {
   return JSON.parse(options.body as string);
 }
 
+function requestParams(callIndex = 0): URLSearchParams {
+  const [url] = mockFetch.mock.calls[callIndex] as [string];
+  return new URL(url).searchParams;
+}
+
 describe('tool layer', () => {
   let rt: RTClient;
 
@@ -139,6 +144,37 @@ describe('tool layer', () => {
 
       expect('CustomFields' in requestBody()).toBe(false);
     });
+  });
+
+  // Collection tools send a default field set, so the tool layer has to pass a
+  // caller's fields through to override it and leave the default alone when the
+  // caller says nothing.
+  describe('collection fields', () => {
+    const collectionTools = [
+      { name: 'get_ticket_attachments', args: { id: 7 }, defaultField: 'ContentLength' },
+      { name: 'lookup_user', args: { query: 'root' }, defaultField: 'EmailAddress' },
+    ];
+
+    it.each(collectionTools)('$name declares fields in its input schema', ({ name }) => {
+      expect(schemaProperties(name)).toHaveProperty('fields');
+    });
+
+    it.each(collectionTools)('$name forwards fields to RT', async ({ name, args }) => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await callTool(rt, name, { ...args, fields: 'Subject' });
+
+      expect(requestParams().get('fields')).toBe('Subject');
+    });
+
+    it.each(collectionTools)(
+      '$name still sends the default when fields is omitted',
+      async ({ name, args, defaultField }) => {
+        mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+        await callTool(rt, name, args);
+
+        expect(requestParams().get('fields')).toContain(defaultField);
+      },
+    );
   });
 
   // The schema descriptions are the only content guidance an AI sees when it is

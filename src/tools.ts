@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { AttachmentInput, RTClient } from './rt-client.js';
+import { AttachmentInput, DEFAULT_FIELDS, RTClient } from './rt-client.js';
 
 export const TOOLS: Tool[] = [
   // -- Read-only tools --
@@ -14,7 +14,8 @@ export const TOOLS: Tool[] = [
       'Key syntax notes: Status has meta-values __Active__ and __Inactive__ that match all active/inactive ' +
       'statuses across lifecycles (e.g. Status = \'__Active__\' rather than Status = \'open\'). ' +
       "Basic examples: \"Queue = 'General' AND Owner = 'Nobody'\", \"Subject LIKE 'login'\". " +
-      'Always include fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due unless context calls for a different set.',
+      'A useful default field set is sent automatically, with Queue and Owner expanded to names, ' +
+      'so pass fields or subfields only when the context calls for a different set.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -24,8 +25,8 @@ export const TOOLS: Tool[] = [
         order: { type: 'string', enum: ['ASC', 'DESC'], description: 'Sort direction' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
-        subfields: { type: 'object', description: 'Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.tickets}) rather than adding to it.` },
+        subfields: { type: 'object', description: `Expand object fields inline, e.g. {"Queue": "Name", "Owner": "Name,EmailAddress"}. Replaces the default (${JSON.stringify(DEFAULT_FIELDS.ticketSubfields)}), so list every field you want expanded.` },
       },
       required: ['query'],
     },
@@ -62,7 +63,14 @@ export const TOOLS: Tool[] = [
     name: 'get_ticket_history',
     description:
       'Get the transaction history for a ticket. Returns a list of transactions ' +
-      '(comments, replies, status changes, etc.)',
+      '(comments, replies, status changes, etc.). Most entries name the field changed ' +
+      'in Field and carry its old and new values. Two kinds do not. An owner or watcher ' +
+      'change (Type SetWatcher, AddWatcher or DelWatcher) puts a numeric user ID in ' +
+      'OldValue and NewValue, and no tool here turns one into a name — describe the ' +
+      'change without inventing one. A custom field change (Type CustomField) puts the ' +
+      "field's numeric ID in Field rather than its name, which get_queue_fields maps " +
+      'back; its OldValue and NewValue hold the values as usual, while OldReference and ' +
+      'NewReference are row IDs that nothing here resolves.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -70,7 +78,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
-        fields: { type: 'string', description: 'Comma-separated list of extra fields to include' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.history}) rather than adding to it.` },
       },
       required: ['id'],
     },
@@ -85,6 +93,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.attachments}) rather than adding to it.` },
       },
       required: ['id'],
     },
@@ -140,7 +149,7 @@ export const TOOLS: Tool[] = [
       properties: {
         fields: {
           type: 'string',
-          description: 'Comma-separated fields to include (default: Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress)',
+          description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.queues}) rather than adding to it.`,
         },
       },
     },
@@ -176,6 +185,7 @@ export const TOOLS: Tool[] = [
         query: { type: 'string', description: 'Name or email fragment to search for' },
         per_page: { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page: { type: 'integer', description: 'Page number (default 1)' },
+        fields: { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.users}) rather than adding to it.` },
       },
       required: ['query'],
     },
@@ -419,6 +429,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       return rt.getTicketAttachments(args.id as number, {
         per_page: args.per_page as number | undefined,
         page: args.page as number | undefined,
+        fields: args.fields as string | undefined,
       });
 
     case 'get_attachment':
@@ -450,6 +461,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       return rt.lookupUser(args.query as string, {
         per_page: args.per_page as number | undefined,
         page: args.page as number | undefined,
+        fields: args.fields as string | undefined,
       });
 
     case 'get_queue_fields':
