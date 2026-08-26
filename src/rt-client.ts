@@ -276,16 +276,18 @@ export class RTClient {
     };
   }
 
-  // Rewrite REST API ticket URLs to web UI URLs so Claude presents clickable
-  // links like /Ticket/Display.html?id=123 instead of /REST/2.0/ticket/123.
+  // Rewrite a ticket's own REST URL to its web UI URL so Claude presents
+  // clickable links like /Ticket/Display.html?id=123 instead of
+  // /REST/2.0/ticket/123. Only the bare ticket URL qualifies: anything below a
+  // ticket is a real endpoint, and rewriting those replaced the next_page link
+  // of a paginated sub-collection with the ticket's display page.
   private rewriteUrls(data: unknown): unknown {
     if (typeof data === 'string') {
       const prefix = `${this.url}/REST/2.0/ticket/`;
       if (data.startsWith(prefix)) {
         const rest = data.slice(prefix.length);
-        const id = rest.split('/')[0];
-        if (id && !isNaN(Number(id))) {
-          return `${this.url}/Ticket/Display.html?id=${id}`;
+        if (/^\d+$/.test(rest)) {
+          return `${this.url}/Ticket/Display.html?id=${rest}`;
         }
       }
       return data;

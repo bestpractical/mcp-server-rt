@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- URL rewriting no longer breaks pagination on ticket sub-collections. Rewriting REST ticket URLs to web UI URLs matched on the ticket ID and discarded the rest of the path, so the `next_page` link returned by `get_ticket_attachments` and `get_ticket_history` was replaced by the ticket's display page and could not be followed. Only a ticket's own URL is rewritten now, which also leaves the `history`, `correspond`, and `comment` entries in a ticket's `_hyperlinks` as the distinct endpoints they are rather than collapsing all three into the same display link.
 - Collection tools no longer return id-only stubs. RT's collection endpoints omit every field unless asked for one, so `get_ticket_attachments` returned no names, types, or sizes, `lookup_user` returned no real names or email addresses, and `search_tickets` and `get_ticket_history` returned nothing but IDs whenever the AI omitted `fields`. Each now sends a sensible default that the caller can override, and `search_tickets` also expands Queue and Owner to names by default. `get_ticket_attachments` and `lookup_user` gained a `fields` parameter to override theirs. Each tool's schema names its own default and says that `fields` — and `subfields` on `search_tickets` — replaces that default rather than adding to it, so a narrowed set has to list every field it keeps.
 
 ### Improved

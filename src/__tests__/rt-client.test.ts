@@ -815,7 +815,7 @@ describe('RTClient', () => {
   });
 
   describe('URL rewriting', () => {
-    it('rewrites REST ticket URLs to web UI URLs in responses', async () => {
+    it('rewrites a ticket URL to the web UI but not one below the ticket', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({
         id: 42,
         _hyperlinks: [
@@ -826,6 +826,22 @@ describe('RTClient', () => {
 
       const result = await client.getTicket(42) as { _hyperlinks: Array<{ _url: string }> };
       expect(result._hyperlinks[0]._url).toBe('http://rt.example.com/Ticket/Display.html?id=42');
+      expect(result._hyperlinks[1]._url).toBe('http://rt.example.com/REST/2.0/ticket/42/history');
+    });
+
+    // The match took the first path segment after /ticket/ as the ID and
+    // rewrote the whole string, so every URL below a ticket became that
+    // ticket's display page — including the next_page link of a sub-collection.
+    it('does not rewrite the next_page link of a ticket sub-collection', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({
+        items: [],
+        next_page: 'http://rt.example.com/REST/2.0/ticket/12/attachments?per_page=3&page=2',
+      }));
+
+      const result = await client.getTicketAttachments(12) as { next_page: string };
+      expect(result.next_page).toBe(
+        'http://rt.example.com/REST/2.0/ticket/12/attachments?per_page=3&page=2',
+      );
     });
 
     it('does not rewrite non-ticket REST URLs', async () => {
