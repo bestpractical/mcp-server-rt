@@ -58,11 +58,13 @@ what used to come back as bare IDs.
 **Expected:**
 - Calls `get_current_user` to resolve "me"
 - Uses `Owner = 'your-username'` in the query
-- `Requestor` field may be dropped since this is a personal task view
+- `Owner` may be dropped from the display, since every row is yours and the column repeats the
+  question back
+- `Requestor` may be dropped too, since a task list is about what to do next rather than who asked
 
-A narrowed set replaces the default rather than subtracting from it, so a call that drops
-`Requestor` has to list every other field it still wants. Watch for one that passes a short
-`fields` and loses Subject or Status along with it.
+A narrowed set replaces the default rather than subtracting from it, so a call that drops a field
+has to list every other field it still wants. Watch for one that passes a short `fields` and loses
+Subject or Status along with it.
 
 **Prompt:** `Show me open support tickets and who requested them`
 
