@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RTClient } from '../rt-client.js';
+import { RTClient, UpdateTicketFields } from '../rt-client.js';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -480,6 +480,18 @@ describe('RTClient', () => {
 
       const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(options.body as string).Priority).toBe('High');
+    });
+
+    // A bare link relation is refused because RT would read it as the complete
+    // list for that relation. The refusal has to arrive as a rejected promise:
+    // a caller that handles failures with .catch() and never wraps the call in
+    // try/catch would otherwise take an uncaught exception.
+    it('rejects a bare link relation without calling RT', async () => {
+      const result = client.updateTicket(7, { RefersTo: 9 } as UpdateTicketFields);
+
+      expect(result).toBeInstanceOf(Promise);
+      await expect(result).rejects.toThrow(/AddRefersTo/);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 

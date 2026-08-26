@@ -126,13 +126,9 @@ export interface UpdateTicketFields {
   Starts?: string;
   Started?: string;
   Told?: string; // "Last Contact" in the RT UI
-  // Link relationships (set, add, or remove)
-  RefersTo?: LinkValue;
-  ReferredToBy?: LinkValue;
-  DependsOn?: LinkValue;
-  DependedOnBy?: LinkValue;
-  Parent?: LinkValue;
-  Child?: LinkValue;
+  // Link relationships — incremental only. RT also accepts a bare relation
+  // name, but that syncs the relation to exactly the value given and silently
+  // drops every other link of the type, so updates go through Add/Delete.
   AddRefersTo?: LinkValue;
   AddReferredToBy?: LinkValue;
   AddDependsOn?: LinkValue;
@@ -246,6 +242,16 @@ function formatDescription(fields: Record<string, unknown>): Record<string, unkn
 function isPriorityLabel(priority: number | string | undefined): priority is string {
   return typeof priority === 'string' && !/^\d+$/.test(priority);
 }
+
+// Every bare link name RT accepts (%RT::Link::TYPEMAP, minus MergedInto, which
+// RT ignores here). Setting one syncs that relation to exactly the value given,
+// silently removing every other link of the type. Several names alias the same
+// relation, so the whole list is refused rather than just the six this tool
+// used to expose.
+const REPLACING_LINK_FIELDS = [
+  'RefersTo', 'ReferredToBy', 'DependsOn', 'DependedOnBy', 'Parent', 'Child',
+  'MemberOf', 'Parents', 'Member', 'Members', 'Children', 'HasMember',
+];
 
 // Date fields that should be converted from local time to UTC before sending to RT
 const DATE_FIELDS = new Set(['Due', 'Starts', 'Started', 'Told']);
@@ -409,7 +415,19 @@ export class RTClient {
     }
   }
 
-  updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
+  // async so the link guard rejects rather than throwing at the call site:
+  // every other method here hands back a promise no matter what goes wrong.
+  async updateTicket(id: number, fields: UpdateTicketFields): Promise<unknown> {
+    const replacing = REPLACING_LINK_FIELDS.filter(
+      (name) => (fields as Record<string, unknown>)[name] !== undefined,
+    );
+    if (replacing.length > 0) {
+      throw new Error(
+        `Cannot update links with ${replacing.join(', ')}: setting a link relation ` +
+          'replaces every existing link of that type. Use Add<Relation> to add links ' +
+          'and Delete<Relation> to remove them, e.g. AddRefersTo or DeleteRefersTo.',
+      );
+    }
     return this.request('PUT', `ticket/${id}`, formatDescription(convertDates(fields)));
   }
 
