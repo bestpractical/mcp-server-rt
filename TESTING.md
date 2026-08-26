@@ -214,6 +214,12 @@ still identify it.
 its type, the field changed, and the new value. The AI should not need a `get_transaction` call
 per row just to learn what each entry was.
 
+Owner, watcher and custom field changes are the entries to check. RT stores a numeric user ID in
+`OldValue`/`NewValue` for `SetWatcher`, `AddWatcher` and `DelWatcher`, and for `CustomField` it
+stores the field's numeric ID in `Field` with the values in `OldReference`/`NewReference`. The AI
+should report those as an ID, or resolve the custom field name with `get_queue_fields` — what it
+must not do is present a plausible username or field name it had no way to look up.
+
 **Prompt:** `What custom fields does the [queue name] queue have?`
 
 **Expected:**

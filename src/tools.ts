@@ -63,7 +63,14 @@ export const TOOLS: Tool[] = [
     name: 'get_ticket_history',
     description:
       'Get the transaction history for a ticket. Returns a list of transactions ' +
-      '(comments, replies, status changes, etc.)',
+      '(comments, replies, status changes, etc.). Most entries name the field changed ' +
+      'in Field and carry its old and new values. Two kinds do not. An owner or watcher ' +
+      'change (Type SetWatcher, AddWatcher or DelWatcher) puts a numeric user ID in ' +
+      'OldValue and NewValue, and no tool here turns one into a name — describe the ' +
+      'change without inventing one. A custom field change (Type CustomField) puts the ' +
+      "field's numeric ID in Field rather than its name, which get_queue_fields maps " +
+      'back; its OldValue and NewValue hold the values as usual, while OldReference and ' +
+      'NewReference are row IDs that nothing here resolves.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
