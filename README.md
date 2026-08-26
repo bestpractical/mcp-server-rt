@@ -119,9 +119,9 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 
 **User:** "Show me active tickets in the Support queue with no owner."
 
-**Claude calls:** `search_tickets` with query `Queue = 'Support' AND Status = '__Active__' AND Owner = 'Nobody'`, requesting Subject, Status, Created, and Requestor fields.
+**Claude calls:** `search_tickets` with query `Queue = 'Support' AND Status = '__Active__' AND Owner = 'Nobody'`. No `fields` parameter is needed — the server sends a default set that identifies each ticket, with queue and owner as names rather than ID stubs.
 
-**Result:** A table of unowned active tickets with subject, age, and requestor, ready to assign or act on.
+**Result:** A table of unowned active tickets with subject, requestor, and when each was last updated, ready to assign or act on.
 
 ---
 
