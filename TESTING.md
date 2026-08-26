@@ -84,6 +84,40 @@ Subject or Status along with it.
 **Expected:**
 - `update_ticket` called with correct `Priority` and `Due` values
 - Due date is in the correct local timezone (verify in RT that it shows the right date)
+- `Priority` may be sent as the label `High` or as a number; both work on update
+
+**Prompt:** `Create a ticket in [queue] with subject "Priority label test" and priority High`
+
+**Expected:**
+- `create_ticket` is called with `Priority: "High"`, and the ticket ends up at the number
+  the queue's `PriorityAsString` mapping assigns to `High` (100 with RT's default mapping)
+- RT cannot resolve a label during create, so the server applies it in a follow-up update.
+  The ticket history therefore shows a priority change immediately after creation — that is
+  expected, not a bug
+- The response carries `PrioritySet` with the change RT reported, naming the label it landed
+  on (`Priority changed from 'Low' to 'High'`)
+- If the follow-up fails outright, the response carries `PriorityNotSet` instead and the AI
+  should say the ticket was created but the priority was not set
+
+**Prompt:** `Create a ticket in [queue] with priority Catastrophic` *(a label that does not exist)*
+
+**Expected:** RT does not reject the label. `SetPriority` cannot find it in the queue's
+mapping, falls back to 0 — the lowest priority — and reports success, so the ticket is
+created at priority 0. The server cannot detect this: REST2 exposes neither the queue's
+mapping nor a ticket's `PriorityAsString`, so there is nothing to validate against. What it
+can do is pass RT's own report back, so `PrioritySet` should name the label 0 maps to
+(`Low` with RT's default mapping) rather than `Catastrophic`, and the AI should notice the
+mismatch and tell you the priority was not set to what you asked for. Note that `Low` is 0
+in RT's default mapping, so an unrecognized label and a genuine `Low` are indistinguishable
+by number alone — the label RT names is the signal.
+
+The same is true on an RT with `$EnablePriorityAsString` off: every label resolves to 0.
+
+**Prompt:** `Set the priority on ticket [ID] to Catastrophic`
+
+**Expected:** Same coercion on the update path, and here RT's report is returned directly
+rather than under `PrioritySet`. The AI should read `Priority changed from ... to 'Low'` and
+tell you the label was not recognized instead of reporting the change as made.
 
 **Prompt:** (on a ticket whose multi-value `[CF name]` already holds `[existing value]`)
 `Add [new value] to the [CF name] custom field on ticket [ID]`

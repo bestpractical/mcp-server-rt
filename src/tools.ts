@@ -241,7 +241,10 @@ export const TOOLS: Tool[] = [
         Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
         Status: { type: 'string', description: 'Initial status' },
-        Priority: { type: 'integer', description: 'Ticket priority' },
+        Priority: {
+          type: ['integer', 'string'],
+          description: 'Ticket priority, as a number or as one of the labels this RT displays (e.g. Low, Medium, High). Labels are configured per queue and are case-sensitive, so use the exact label RT shows; when in doubt pass a number. RT does not reject a label it does not recognize, and does not reject a label at all on an installation with priority labels turned off: it sets the priority to 0, the lowest, and reports success. So read the PrioritySet message in the response, which names the label RT actually applied, and tell the user if it is not the one you asked for. A label is applied in a follow-up update because RT cannot resolve one while creating a ticket; if that step fails the response carries PriorityNotSet instead and the ticket is created without the priority.',
+        },
         Owner: { type: 'string', description: 'Owner username' },
         Requestor: { description: 'Requestor username(s) (string or array of strings)' },
         Cc: { description: 'Cc username(s) (string or array of strings)' },
@@ -287,7 +290,10 @@ export const TOOLS: Tool[] = [
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
         Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
         Status: { type: 'string', description: 'New status (e.g. open, resolved, rejected)' },
-        Priority: { type: 'integer', description: 'New priority' },
+        Priority: {
+          type: ['integer', 'string'],
+          description: 'New priority, as a number or as one of the labels this RT displays (e.g. Low, Medium, High). Labels are configured per queue and are case-sensitive, so use the exact label RT shows; when in doubt pass a number. RT does not reject a label it does not recognize, and does not reject a label at all on an installation with priority labels turned off: it sets the priority to 0, the lowest, and reports success. The response names the change RT made ("Priority changed from X to Y"), so check that the label it landed on is the one you asked for and tell the user if it is not.',
+        },
         Owner: { type: 'string', description: 'New owner username' },
         Queue: { type: 'string', description: 'Move to this queue' },
         CustomFields: {

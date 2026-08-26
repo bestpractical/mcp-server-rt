@@ -319,6 +319,138 @@ describe('RTClient', () => {
       const body = JSON.parse(options.body as string);
       expect(body.Owner).toBe('alice');
     });
+
+    // RT::Ticket::Create stores Priority straight into an int column and never
+    // resolves a PriorityAsString label, so a label has to be applied afterwards
+    // through SetPriority, which does resolve it.
+    describe('priority labels', () => {
+      it('sends a numeric priority in the create body', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({ Queue: 'General', Subject: 'Test', Priority: 80 });
+
+        expect(mockFetch.mock.calls).toHaveLength(1);
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Priority).toBe(80);
+      });
+
+      it('treats a numeric string as a number and sends it in the create body', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({ Queue: 'General', Subject: 'Test', Priority: '80' });
+
+        expect(mockFetch.mock.calls).toHaveLength(1);
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Priority).toBe('80');
+      });
+
+      // RT's SetPriority only takes /^\d+$/ as a number and looks everything
+      // else up as a label. A value this classified as a number but RT does not
+      // would be stored verbatim on create and coerced to 0 on update, so the
+      // two have to agree on where the line falls.
+      it.each(['-5', ' 80 ', '8.0', ''])(
+        'defers %j to the follow-up update, as RT would not read it as a number',
+        async (priority) => {
+          mockFetch
+            .mockReturnValueOnce(mockResponse({ id: '7', type: 'ticket' }))
+            .mockReturnValueOnce(mockResponse(['Ticket 7: Priority changed']));
+
+          await client.createTicket({ Queue: 'General', Subject: 'Test', Priority: priority });
+
+          expect(mockFetch.mock.calls).toHaveLength(2);
+          const [, createOpts] = mockFetch.mock.calls[0] as [string, RequestInit];
+          expect('Priority' in JSON.parse(createOpts.body as string)).toBe(false);
+
+          const [, updateOpts] = mockFetch.mock.calls[1] as [string, RequestInit];
+          expect(JSON.parse(updateOpts.body as string).Priority).toBe(priority);
+        },
+      );
+
+      it('omits a label from the create body and sets it in a follow-up update', async () => {
+        mockFetch
+          .mockReturnValueOnce(mockResponse({ id: '7', type: 'ticket' }))
+          .mockReturnValueOnce(mockResponse(["Ticket 7: Priority changed from 'Low' to 'High'"]));
+
+        await client.createTicket({ Queue: 'General', Subject: 'Test', Priority: 'High' });
+
+        expect(mockFetch.mock.calls).toHaveLength(2);
+
+        const [createUrl, createOpts] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(createUrl).toContain('/REST/2.0/ticket');
+        expect('Priority' in JSON.parse(createOpts.body as string)).toBe(false);
+
+        const [updateUrl, updateOpts] = mockFetch.mock.calls[1] as [string, RequestInit];
+        expect(updateUrl).toContain('/REST/2.0/ticket/7');
+        expect(updateOpts.method).toBe('PUT');
+        expect(JSON.parse(updateOpts.body as string).Priority).toBe('High');
+      });
+
+      it('still returns the new ticket id when the follow-up priority update fails', async () => {
+        mockFetch
+          .mockReturnValueOnce(mockResponse({ id: '7', type: 'ticket' }))
+          .mockReturnValueOnce(mockResponse({ message: 'Invalid priority' }, 400));
+
+        const result = await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Priority: 'Catastrophic',
+        }) as Record<string, unknown>;
+
+        expect(result.id).toBe('7');
+        expect(result.PriorityNotSet).toContain('Invalid priority');
+      });
+
+      // Number('') is 0, which would send the follow-up to ticket/0 and set the
+      // priority on whatever that resolves to rather than on the new ticket.
+      it.each([{ id: '' }, { id: 'abc' }, {}])(
+        'does not attempt the follow-up when the create returns %j as the id',
+        async (created) => {
+          mockFetch.mockReturnValueOnce(mockResponse(created));
+
+          const result = await client.createTicket({
+            Queue: 'General',
+            Subject: 'Test',
+            Priority: 'High',
+          }) as Record<string, unknown>;
+
+          expect(mockFetch.mock.calls).toHaveLength(1);
+          expect(result.PriorityNotSet).toBe('Could not determine the new ticket ID');
+        },
+      );
+
+      // RT reports the change naming the label it resolved to, which is the
+      // only evidence the caller gets that the label was understood.
+      it('reports back the priority change RT made', async () => {
+        mockFetch
+          .mockReturnValueOnce(mockResponse({ id: '7', type: 'ticket' }))
+          .mockReturnValueOnce(mockResponse(["Ticket 7: Priority changed from 'Low' to 'High'"]));
+
+        const result = await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Priority: 'High',
+        }) as Record<string, unknown>;
+
+        expect(result.id).toBe('7');
+        expect(result.PrioritySet).toEqual(["Ticket 7: Priority changed from 'Low' to 'High'"]);
+      });
+
+      // An unrecognized label is not an error to RT: SetPriority falls back to
+      // 0 and reports success, so the change it names is the caller's only way
+      // to notice that the label did not land.
+      it('surfaces the coerced label when RT does not recognize the one sent', async () => {
+        mockFetch
+          .mockReturnValueOnce(mockResponse({ id: '7', type: 'ticket' }))
+          .mockReturnValueOnce(mockResponse(["Ticket 7: Priority changed from 'High' to 'Low'"]));
+
+        const result = await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Priority: 'Catastrophic',
+        }) as Record<string, unknown>;
+
+        expect(result.PriorityNotSet).toBeUndefined();
+        expect(result.PrioritySet).toEqual(["Ticket 7: Priority changed from 'High' to 'Low'"]);
+      });
+    });
   });
 
   describe('updateTicket', () => {
@@ -339,6 +471,15 @@ describe('RTClient', () => {
       const body = JSON.parse(options.body as string);
       // Tests run with TZ=UTC, so local time == UTC; exact value should be preserved
       expect(body.Due).toBe('2026-03-09 00:00:00');
+    });
+
+    // RT resolves the label itself here, per queue, via SetPriority.
+    it('passes a priority label straight through', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(["Priority changed from 'Low' to 'High'"]));
+      await client.updateTicket(7, { Priority: 'High' });
+
+      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(options.body as string).Priority).toBe('High');
     });
   });
 

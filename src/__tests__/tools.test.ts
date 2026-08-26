@@ -205,6 +205,46 @@ describe('tool layer', () => {
     });
   });
 
+  // Priority was integer-only, so the AI could not use the labels RT displays.
+  // RT resolves labels per queue, so both tools accept either form.
+  describe('priority', () => {
+    it.each(['create_ticket', 'update_ticket'])('accepts a string or integer on %s', (name) => {
+      const priority = schemaProperties(name).Priority as { type: unknown };
+      expect(priority.type).toEqual(['integer', 'string']);
+    });
+
+    it('forwards a priority label on update_ticket', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse(["Priority changed from 'Low' to 'High'"]));
+      await callTool(rt, 'update_ticket', { id: 7, Priority: 'High' });
+
+      expect(requestBody().Priority).toBe('High');
+    });
+
+    // RT answers an unrecognized label with priority 0 and a success report,
+    // and the server cannot detect it, so each description has to warn that
+    // sending a label is not the same as setting one.
+    it.each(['create_ticket', 'update_ticket'])(
+      'warns on %s that an unrecognized label becomes the lowest priority',
+      (name) => {
+        const { description } = schemaProperties(name).Priority as { description: string };
+
+        expect(description).toMatch(/does not reject a label/i);
+        expect(description).toMatch(/\b0\b.*lowest|lowest.*\b0\b/i);
+        expect(description).toMatch(/reports success/i);
+      },
+    );
+
+    it('tells the AI where to read the priority RT actually applied', () => {
+      const create = (schemaProperties('create_ticket').Priority as { description: string })
+        .description;
+      const update = (schemaProperties('update_ticket').Priority as { description: string })
+        .description;
+
+      expect(create).toContain('PrioritySet');
+      expect(update).toMatch(/Priority changed from/);
+    });
+  });
+
   describe('unknown tools', () => {
     it('throws for a tool name that does not exist', async () => {
       await expect(callTool(rt, 'no_such_tool', {})).rejects.toThrow('Unknown tool: no_such_tool');
