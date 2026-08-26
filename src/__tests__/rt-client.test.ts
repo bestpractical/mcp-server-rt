@@ -119,6 +119,112 @@ describe('RTClient', () => {
       expect(body.Due).toBe('2026-03-09 00:00:00');
     });
 
+    // Description is HTML, rendered raw after scrubbing, so a newline does
+    // nothing and multi-line text arrives as one run-on paragraph.
+    describe('Description formatting', () => {
+      it('turns plain multi-line text into paragraphs', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: 'First line\nSecond line\n\nNew paragraph',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>First line<br />Second line</p><p>New paragraph</p>',
+        );
+      });
+
+      it('leaves a value that already contains markup untouched', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: '<p>Already</p>\n<p>formatted</p>',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>Already</p>\n<p>formatted</p>',
+        );
+      });
+
+      it('leaves single-line text untouched', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({ Queue: 'General', Subject: 'Test', Description: 'One line' });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe('One line');
+      });
+
+      // A comparison is not markup. Treating any "<" as markup skipped
+      // conversion, so the newline rendered as nothing.
+      it('escapes a bare "<" rather than treating it as markup', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: 'Disk usage < 10% free\nPlease investigate',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>Disk usage &lt; 10% free<br />Please investigate</p>',
+        );
+      });
+
+      // RT deletes a tag it does not allow along with the text inside it, so
+      // an unescaped <bob@example.com> loses the address with no error.
+      it('escapes angle brackets that RT would strip as an unknown tag', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: 'Contact <bob@example.com>\nRetry tomorrow',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>Contact &lt;bob@example.com&gt;<br />Retry tomorrow</p>',
+        );
+      });
+
+      // RT escapes a bare "&" itself and does not double-escape an entity, so
+      // leaving "&" alone keeps a deliberate "&amp;" intact.
+      it('leaves ampersands for RT to handle', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: 'AT&T\n&amp; more',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>AT&T<br />&amp; more</p>',
+        );
+      });
+
+      // Wrapping a blank value in <p></p> writes a non-empty field and logs a
+      // spurious "Description changed" transaction.
+      it('leaves a whitespace-only value untouched', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse(['Description changed']));
+        await client.updateTicket(7, { Description: '  \n  ' });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe('  \n  ');
+      });
+
+      it('applies the same handling on update', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse(['Description changed']));
+        await client.updateTicket(7, { Description: 'One\nTwo' });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe('<p>One<br />Two</p>');
+      });
+    });
+
     it('leaves non-date fields unchanged', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
       await client.createTicket({ Queue: 'General', Subject: 'Test', Owner: 'alice' });
@@ -394,6 +500,76 @@ describe('RTClient', () => {
       expect(result.Name).toBe('General');
       expect(result.Lifecycle).toBe('default');
       expect(result.CustomFields).toHaveLength(2);
+    });
+
+    // The CF type decides how RT renders a value, but "Text" vs
+    // "HTML" vs "Freeform" says nothing to an AI about what to send.
+    describe('content format hints', () => {
+      const cases: Array<[string, string]> = [
+        ['HTML', 'html'],
+        ['Text', 'plain-text-multiline'],
+        ['Wikitext', 'wikitext'],
+        ['Freeform', 'plain-text'],
+        ['Select', 'plain-text'],
+      ];
+
+      it.each(cases)('labels a %s field as %s', async (type, expected) => {
+        mockFetch
+          .mockReturnValueOnce(
+            mockResponse({
+              id: 1,
+              Name: 'General',
+              Lifecycle: 'default',
+              TicketCustomFields: [{ id: 10, name: 'Field' }],
+            }),
+          )
+          .mockReturnValueOnce(mockResponse({ id: 10, Name: 'Field', Type: type }));
+
+        const result = await client.getQueueFields('General') as {
+          CustomFields: Array<Record<string, unknown>>;
+        };
+        expect(result.CustomFields[0].ContentFormat).toBe(expected);
+      });
+
+      it('labels the queue and transaction groups too', async () => {
+        mockFetch
+          .mockReturnValueOnce(
+            mockResponse({
+              id: 1,
+              Name: 'General',
+              Lifecycle: 'default',
+              CustomFields: [{ id: 2, name: 'Q', values: [] }],
+              TicketTransactionCustomFields: [{ id: 3, name: 'T' }],
+            }),
+          )
+          .mockReturnValueOnce(mockResponse({ id: 2, Name: 'Q', Type: 'HTML' }))
+          .mockReturnValueOnce(mockResponse({ id: 3, Name: 'T', Type: 'Text' }));
+
+        const result = await client.getQueueFields('General') as {
+          QueueCustomFields: Array<Record<string, unknown>>;
+          TransactionCustomFields: Array<Record<string, unknown>>;
+        };
+        expect(result.QueueCustomFields[0].ContentFormat).toBe('html');
+        expect(result.TransactionCustomFields[0].ContentFormat).toBe('plain-text-multiline');
+      });
+
+      it('adds no hint to a field whose details could not be read', async () => {
+        mockFetch
+          .mockReturnValueOnce(
+            mockResponse({
+              id: 1,
+              Name: 'General',
+              Lifecycle: 'default',
+              TicketCustomFields: [{ id: 10, name: 'Hidden' }],
+            }),
+          )
+          .mockReturnValueOnce(mockResponse({ message: 'Forbidden' }, 403));
+
+        const result = await client.getQueueFields('General') as {
+          CustomFields: Array<Record<string, unknown>>;
+        };
+        expect(result.CustomFields[0]).not.toHaveProperty('ContentFormat');
+      });
     });
 
     it('returns empty CustomFields when queue has none', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { RTClient } from '../rt-client.js';
+import { RTClient, CONTENT_FORMATS } from '../rt-client.js';
 import { TOOLS, callTool } from '../tools.js';
 
 // Mock global fetch so we can assert on the request the tool layer produces.
@@ -138,6 +138,34 @@ describe('tool layer', () => {
       await callTool(rt, 'add_reply', { id: 7, Content: 'Reply to requestor', CustomFields: null });
 
       expect('CustomFields' in requestBody()).toBe(false);
+    });
+  });
+
+  // The schema descriptions are the only content guidance an AI sees when it is
+  // writing a field, so they have to agree with what RT actually does.
+  describe('content formatting guidance', () => {
+    function fieldDescription(toolName: string, field: string): string {
+      const property = schemaProperties(toolName)[field] as { description?: string };
+      return property.description ?? '';
+    }
+
+    // These used to promise "you do not need to escape < , & or > — RT does
+    // that". RT escapes a bare one, but deletes a tag it does not allow along
+    // with the text inside it.
+    it.each(['create_ticket', 'update_ticket'])(
+      '%s tells the AI to escape angle brackets that are not markup',
+      (toolName) => {
+        const description = fieldDescription(toolName, 'Description');
+        expect(description).toContain('&lt;');
+        expect(description).not.toMatch(/(do not|don't) need to escape/i);
+      },
+    );
+
+    it('get_queue_fields describes every content format the server can report', () => {
+      const description = tool('get_queue_fields').description ?? '';
+      for (const format of new Set([...Object.values(CONTENT_FORMATS), 'plain-text'])) {
+        expect(description).toContain(`"${format}"`);
+      }
     });
   });
 
