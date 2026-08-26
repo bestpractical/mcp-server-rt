@@ -36,25 +36,19 @@ function resolveAttachment(a: AttachmentInput): { FileName: string; FileType: st
   return { FileName: a.FileName, FileType: a.FileType, FileContent: a.FileContent };
 }
 
-export interface SearchOptions {
+// Shared by every paginated collection endpoint. Each one sends its own
+// default field set (see DEFAULT_FIELDS); fields replaces that default rather
+// than adding to it.
+export interface CollectionOptions {
+  per_page?: number;
+  page?: number;
+  fields?: string;
+}
+
+export interface SearchOptions extends CollectionOptions {
   orderby?: string;
   order?: 'ASC' | 'DESC';
-  per_page?: number;
-  page?: number;
-  fields?: string;
   subfields?: Record<string, string>;
-}
-
-export interface HistoryOptions {
-  per_page?: number;
-  page?: number;
-  fields?: string;
-}
-
-export interface UserSearchOptions {
-  per_page?: number;
-  page?: number;
-  fields?: string;
 }
 
 // A custom field reference as it appears on a queue record. Queue-level
@@ -366,7 +360,7 @@ export class RTClient {
     return this.request('PUT', `ticket/${id}`, formatDescription(convertDates(fields)));
   }
 
-  getTicketHistory(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+  getTicketHistory(id: number, opts: CollectionOptions = {}): Promise<unknown> {
     return this.request('GET', `ticket/${id}/history`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
@@ -388,7 +382,7 @@ export class RTClient {
 
   // Attachment operations
 
-  getTicketAttachments(id: number, opts: HistoryOptions = {}): Promise<unknown> {
+  getTicketAttachments(id: number, opts: CollectionOptions = {}): Promise<unknown> {
     return this.request('GET', `ticket/${id}/attachments`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
@@ -489,7 +483,7 @@ export class RTClient {
 
   // User operations
 
-  lookupUser(query: string, opts: UserSearchOptions = {}): Promise<unknown> {
+  lookupUser(query: string, opts: CollectionOptions = {}): Promise<unknown> {
     const queryArray = [
       { field: 'Name', operator: 'LIKE', value: query },
       { field: 'EmailAddress', operator: 'LIKE', value: query, entry_aggregator: 'OR' },
