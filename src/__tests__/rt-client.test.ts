@@ -542,12 +542,12 @@ describe('RTClient', () => {
       expect(url).toContain('/REST/2.0/ticket/7/history');
     });
 
-    it('passes fields param in URL', async () => {
+    it('lets the caller override the default fields', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
       await client.getTicketHistory(7, { fields: 'Type,Content' });
 
       const [url] = mockFetch.mock.calls[0] as [string];
-      expect(url).toContain('fields=');
+      expect(url).toContain('fields=Type%2CContent');
     });
   });
 
