@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Queue administration: 26 tools covering queues (`create_queue`, `update_queue`, `manage_queue_watchers`), user-defined groups and their members, custom field creation and application, lifecycles, and rights. Enough to build a working queue end to end without leaving the conversation.
+- A `create-queue` MCP prompt, exposed through the new `prompts` capability. It runs an interactive consultant: it asks about the workflow before recommending anything, maps the answers onto RT concepts — lifecycle, groups, roles, rights, custom fields, watchers — then confirms a plan before making changes. The prompt text ships in `data/prompts/create-queue.md`.
+- AI instructions for the above. `QUEUE SETUP` gives the order the tools are meant to be used in, and `PARTIAL UPDATES` warns that `update_ticket`, `update_queue`, and `manage_queue_watchers` apply each field independently and return success even when some of those fields failed — a response can read `["That user does not exist", "Subject changed from 'x' to 'y'"]`, meaning the rename applied and the owner was silently left alone. The most common cause is a name RT could not resolve: a group has to be written as `group:Group Name` or it is looked up as a user and fails.
+- `manifest.json` now lists all 43 tools. It had drifted to 31, so twelve implemented tools were invisible to anyone browsing the desktop extension. The array is documentation only — `tools/list` is built from the code — so the omission cost discovery rather than access.
+
+### Requirements
+- The lifecycle and rights tools need **RT 6.0.3 or later**. RT's REST2 `Lifecycle` and `Rights` resources were added in that release; the queue, group, and custom field tools work against earlier RT 6.0.x. This is why the release is 0.3.0 rather than 0.2.2.
+
+### Fixed
+- A successful `DELETE` that returns 204 with no body no longer throws. `request` always tried to parse a response body, so `delete_lifecycle` failed on every successful delete.
+
+### Internal
+- Prompt loading lives in `src/prompts.ts`, and the one assumption both bundled-data readers depend on — that `data/` sits beside the built script — is now written once in `src/data-files.ts`. `loadPrompts` deliberately degrades to no prompts if the file cannot be read, so a packaging mistake would otherwise be invisible; `src/__tests__/prompts.test.ts` covers both the loaded and missing cases, and `get_ticketsql_grammar`, the other reader, gained its first test.
+
 ## [0.2.2] - 2026-08-27
 
 ### Changed

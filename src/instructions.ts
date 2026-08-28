@@ -95,6 +95,29 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'the installation configures reminder_on_resolve differently. ' +
     'The statuses that reminder can move to are listed in the _hyperlinks of a get_ticket response ' +
     '(ref = "lifecycle", each carrying a "to" status); if "resolved" is not among them, choose the inactive ' +
-    'status from that list, and ask the user if none of them is clearly the completed state.'
+    'status from that list, and ask the user if none of them is clearly the completed state.\n\n' +
+    'QUEUE SETUP: When helping create a new queue, follow this sequence:\n' +
+    '(1) list_lifecycles to show available workflows,\n' +
+    '(2) create_queue with name, description, lifecycle,\n' +
+    '(3) list_groups to check for existing groups, then create_group if needed\n' +
+    '    and add_group_members to populate staff groups,\n' +
+    '(4) create custom fields if needed (create_custom_field + add_custom_field_value\n' +
+    '    for select types + apply_custom_field),\n' +
+    '(5) grant_rights to set up permissions for Everyone, Requestor role, and staff group,\n' +
+    '(6) manage_queue_watchers to assign Cc/AdminCc members.\n' +
+    'Always confirm the plan with the user before making changes.\n\n' +
+    'PARTIAL UPDATES: update_ticket, update_queue, and manage_queue_watchers apply each ' +
+    'field independently, and they return success even when some of those fields failed. ' +
+    'The result is an array holding one message per attempted change, successes and failures ' +
+    'mixed together and in no particular order — a single response can read ' +
+    '["That user does not exist", "Subject changed from \'x\' to \'y\'"], meaning the subject ' +
+    'was renamed and the owner was silently left alone. Never conclude the call worked ' +
+    'because it returned without an error. Read every message, confirm each change you asked ' +
+    'for actually applied, and tell the user about any that did not, naming the value that ' +
+    'was rejected. Failures are phrased many ways and are translated on non-English ' +
+    'instances, so read for meaning rather than matching set phrases. ' +
+    'The most common cause is a name RT could not resolve: watchers and owners must be a ' +
+    'username, an email address, or a numeric ID, and a group has to be written as ' +
+    '"group:Group Name" or it is looked up as a user and fails.'
   );
 }

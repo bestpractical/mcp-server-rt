@@ -118,6 +118,42 @@ describe('buildInstructions', () => {
     });
   });
 
+  // Ported with the queue-creation work: RT applies each field of an update
+  // independently and reports success even when some of them failed.
+  describe('partial update guidance', () => {
+    it('warns that a successful call can still hold failures', () => {
+      expect(instructions).toContain('PARTIAL UPDATES');
+      expect(instructions).toMatch(/return success even when some/i);
+    });
+
+    it('names every tool that applies fields independently', () => {
+      for (const tool of ['update_ticket', 'update_queue', 'manage_queue_watchers']) {
+        expect(instructions).toContain(tool);
+      }
+    });
+
+    it('tells the AI to read for meaning rather than match set phrases', () => {
+      expect(instructions).toMatch(/read for meaning/i);
+    });
+
+    it('gives the group: prefix a watcher name needs', () => {
+      expect(instructions).toContain('group:Group Name');
+    });
+  });
+
+  describe('queue setup guidance', () => {
+    it('gives the ordered sequence for building a queue', () => {
+      expect(instructions).toContain('QUEUE SETUP');
+      for (const tool of ['list_lifecycles', 'create_queue', 'create_group', 'grant_rights']) {
+        expect(instructions).toContain(tool);
+      }
+    });
+
+    it('requires confirming the plan before making changes', () => {
+      expect(instructions).toMatch(/confirm the plan with the user before making changes/i);
+    });
+  });
+
   describe('reminder status guidance', () => {
     // The instructions used to say a reminder's active status is "open".
     // The status a reminder starts in is set by the queue lifecycle —

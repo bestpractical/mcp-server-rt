@@ -2,10 +2,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RTClient } from './rt-client.js';
 import { buildInstructions } from './instructions.js';
+import { PROMPTS } from './prompts.js';
 import { Args, TOOLS, callTool } from './tools.js';
 import { version } from '../package.json';
 
@@ -46,12 +49,37 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const server = new Server(
   { name: 'rt', version },
   {
-    capabilities: { tools: {} },
+    capabilities: { tools: {}, prompts: {} },
     instructions: buildInstructions({ rtUrl: process.env.RT_URL!, timezone }),
   },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+  prompts: PROMPTS.map(({ name, title, description }) => ({
+    name,
+    title,
+    description,
+  })),
+}));
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name } = request.params;
+  const prompt = PROMPTS.find((p) => p.name === name);
+  if (!prompt) {
+    throw new Error(`Unknown prompt: ${name}`);
+  }
+  return {
+    description: prompt.description,
+    messages: [
+      {
+        role: 'user' as const,
+        content: { type: 'text' as const, text: prompt.content },
+      },
+    ],
+  };
+});
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;

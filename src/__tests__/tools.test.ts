@@ -313,6 +313,95 @@ describe('tool layer', () => {
     });
   });
 
+  // Ported with the queue-creation work, which had no tool-layer tests. The
+  // structural checks matter most: a schema with no case is a tool that always
+  // errors, and a case with no schema is a tool no AI can discover.
+  describe('queue and group administration', () => {
+    const ported = [
+      'create_queue', 'update_queue', 'manage_queue_watchers',
+      'list_groups', 'get_group', 'create_group',
+      'list_group_members', 'add_group_members', 'remove_group_member',
+      'create_custom_field', 'search_custom_fields', 'apply_custom_field',
+      'add_custom_field_value', 'list_custom_field_applications',
+      'remove_custom_field_application',
+      'list_lifecycles', 'get_lifecycle', 'create_lifecycle', 'update_lifecycle',
+      'update_lifecycle_maps', 'validate_lifecycle', 'delete_lifecycle',
+      'grant_rights', 'revoke_right', 'list_rights', 'get_available_rights',
+    ];
+
+    it.each(ported)('%s is declared with an input schema', (name) => {
+      expect(tool(name).inputSchema).toBeDefined();
+    });
+
+    it('every declared tool is reachable through callTool', async () => {
+      // "Unknown tool" is raised before RT is touched, so it is the one failure
+      // that proves a schema has no matching case. Any other error is fine here.
+      mockFetch.mockReturnValue(mockResponse({}));
+      const unreachable: string[] = [];
+      for (const t of TOOLS) {
+        try {
+          await callTool(rt, t.name, { id: 1, query: 'x', path: '/tmp/x', name: 'x' });
+        } catch (err) {
+          if (/Unknown tool/.test(String(err))) unreachable.push(t.name);
+        }
+      }
+      expect(unreachable).toEqual([]);
+    });
+
+    it('creates a queue from the fields it was given', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: '3' }));
+      await callTool(rt, 'create_queue', { Name: 'Service Desk', Lifecycle: 'default' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/queue');
+      expect(options.method).toBe('POST');
+      expect(requestBody()).toMatchObject({ Name: 'Service Desk', Lifecycle: 'default' });
+    });
+
+    it('adds group members by id', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse([]));
+      await callTool(rt, 'add_group_members', { id: '7', members: [11, 12] });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/group/7/members');
+      expect(options.method).toBe('PUT');
+      expect(requestBody()).toEqual([11, 12]);
+    });
+
+    it('validates a lifecycle without saving it', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ valid: true }));
+      await callTool(rt, 'validate_lifecycle', { name: 'helpdesk', initial: ['new'] });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/lifecycle/helpdesk/validate');
+    });
+
+    it('scopes a global right grant to the global path', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse([]));
+      await callTool(rt, 'grant_rights', {
+        object_type: 'global',
+        principal_type: 'group',
+        principal_id: 'Everyone',
+        rights: ['CreateTicket'],
+      });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/global/rights');
+    });
+  });
+
+  // The other bundled-data reader: this tool answers from data/ rather than RT,
+  // so a packaging mistake would show up as an empty grammar reference.
+  describe('get_ticketsql_grammar', () => {
+    it('returns the bundled grammar without calling RT', async () => {
+      const grammar = await callTool(rt, 'get_ticketsql_grammar', {}) as string;
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(grammar.length).toBeGreaterThan(1000);
+      expect(grammar).toMatch(/TicketSQL/i);
+    });
+  });
+
   describe('unknown tools', () => {
     it('throws for a tool name that does not exist', async () => {
       await expect(callTool(rt, 'no_such_tool', {})).rejects.toThrow('Unknown tool: no_such_tool');
