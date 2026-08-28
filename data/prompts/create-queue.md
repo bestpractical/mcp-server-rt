@@ -446,6 +446,15 @@ ShowOutgoingEmail, ForwardMessage
 **Deletion**: DeleteTicket — grant sparingly; resolving or
 rejecting is usually better than deleting
 
+**Transition gates**: a right named in a lifecycle's `rights` map is
+a real right, not a label — RT registers it on the queue, and it has
+to be granted like any other or the gate stops everyone, including
+the person it was built for. It appears under the `Status` category
+of `get_available_rights` on that queue, and only once the lifecycle
+naming it exists, so create the lifecycle first and grant the right
+in the normal rights step. Grant it to the approving group and to
+nobody else — that is the whole point of the gate.
+
 **Administration** (rarely at setup): AdminQueue, ShowACL,
 ModifyACL, ModifyQueueWatchers, AssignCustomFields, ModifyScrips,
 ShowScrips, ModifyTemplate, ShowTemplate

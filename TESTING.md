@@ -484,6 +484,13 @@ never granted is an error rather than a silent pass — RT answers 404 on a queu
 `resource_exists` looks for the ACE first, and 500 globally, where that check is skipped
 and `RevokeRight` fails instead. Either way the AI sees a failure, not success.
 
+Watch which form the AI passes for the group. `revoke_right` puts the principal in the
+URL path, where RT resolves a username but not a group name, so a group has to be given
+as its numeric ID even though `grant_rights` accepted the name a moment earlier. A group
+name answers the same 404 as a right that was never granted, so an AI that passes one may
+report the right as already absent. `list_rights` has the same split, and there a group
+name is worse: it matches nothing and returns an empty list rather than an error.
+
 **Prompt:** `Set [group] as AdminCc on [queue]`
 
 **Expected:** `manage_queue_watchers`. A group has to be passed as `group:Group Name`;

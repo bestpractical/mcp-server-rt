@@ -525,8 +525,9 @@ export const TOOLS: Tool[] = [
     description:
       'List the members of a group. RT returns only an id and a type (user or group) per ' +
       'member — this collection ignores a fields parameter, so names cannot be requested. ' +
-      'Resolve a group member with get_group. A user member cannot be resolved by id with ' +
-      'any tool here, so describe such members by id rather than inventing a name.',
+      'get_group returns the same membership already resolved: a user member carries its ' +
+      'username as its id, a group member its numeric id. Use get_group when the user needs ' +
+      'members named rather than listed as bare ids.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -626,9 +627,12 @@ export const TOOLS: Tool[] = [
       'Update a lifecycle\'s configuration. Pass the full lifecycle definition including ' +
       'initial, active, inactive status arrays, transitions, rights, actions, and defaults. ' +
       'This REPLACES the stored configuration — any key you omit is dropped, including keys ' +
-      'inherited from a create_lifecycle Clone. RT backfills defaults.on_create and falls back to ' +
-      'ModifyTicket/DeleteTicket for missing rights, but omitted actions, colors, status_metadata ' +
-      'and transition_metadata are simply lost. Cloning "default" inherits a full set of metadata, ' +
+      'inherited from a create_lifecycle Clone. RT fills in a missing defaults.on_create from ' +
+      'the first initial status, and falls back to ModifyTicket — DeleteTicket for deleted — ' +
+      'where rights are missing, but it does that in memory as it loads the config: neither ' +
+      'key reappears in get_lifecycle, so one absent there is a working default rather than ' +
+      'damage to repair. Omitted actions, colors, status_metadata and transition_metadata ' +
+      'are simply lost. Cloning "default" inherits a full set of metadata, ' +
       'so omitting those two keys here silently strips the descriptions from every status. ' +
       'Use get_lifecycle first to get the current config, then modify and send the whole thing back. ' +
       'The lifecycle is validated before saving; any warning fails the update with a 400.',
@@ -744,7 +748,12 @@ export const TOOLS: Tool[] = [
     name: 'get_available_rights',
     description:
       'Get the rights that can be granted on a queue, custom field, group, class, ' +
-      'catalog, or globally. Returns rights organized by category (General, Admin, Status).',
+      'catalog, or globally. Returns rights grouped by category, and which categories come back ' +
+      'depends on the object: RT\'s own are General, Staff and Admin, and a group offers only ' +
+      'some of them. A queue — and the global object — also carries a Status category, holding ' +
+      'one right for each status transition a lifecycle reserves behind a named right, so that ' +
+      'is where a custom sign-off right appears once a lifecycle defines it. Read the categories ' +
+      'from the response rather than assuming a fixed set.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -774,8 +783,8 @@ export const TOOLS: Tool[] = [
           description: 'Type of object',
         },
         object_id: { type: 'string', description: 'Object ID, or name for a queue, class or catalog (group and customfield are numeric id only). Not needed for global.' },
-        user:      { type: 'string', description: 'Filter by user ID' },
-        group:     { type: 'string', description: 'Filter by group ID' },
+        user:      { type: 'string', description: 'Filter by username or numeric user ID' },
+        group:     { type: 'string', description: 'Filter by numeric group ID. A group name is not resolved and matches nothing, so it returns an empty list rather than an error.' },
         per_page:  { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page:      { type: 'integer', description: 'Page number (default 1)' },
       },
@@ -821,7 +830,12 @@ export const TOOLS: Tool[] = [
     name: 'revoke_right',
     description:
       'Revoke a right from a user or group on a queue, custom field, group, class, ' +
-      'catalog, or globally.',
+      'catalog, or globally. The principal goes in the URL path here rather than a ' +
+      'request body, and RT resolves a name there only for a user: a group has to be ' +
+      'given as its numeric ID, and a group name answers 404 even though grant_rights ' +
+      'resolves that same name. RT answers 404 for a right that was never granted too, ' +
+      'so a group name passed here looks like nothing to revoke rather than a bad ' +
+      'parameter. Use get_group or list_groups to get the ID.',
     annotations: { destructiveHint: true },
     inputSchema: {
       type: 'object',
@@ -833,8 +847,8 @@ export const TOOLS: Tool[] = [
         },
         object_id: { type: 'string', description: 'Object ID, or name for a queue, class or catalog (group and customfield are numeric id only). Not needed for global.' },
         Right:     { type: 'string', description: 'Right name to revoke' },
-        User:      { type: 'string', description: 'User ID to revoke from' },
-        Group:     { type: 'string', description: 'Group ID to revoke from' },
+        User:      { type: 'string', description: 'Username or numeric user ID to revoke from. An email address is not resolved.' },
+        Group:     { type: 'string', description: 'Numeric group ID to revoke from. A group name is not resolved here, unlike grant_rights.' },
       },
       required: ['object_type', 'Right'],
     },

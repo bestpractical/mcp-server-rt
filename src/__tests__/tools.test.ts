@@ -401,6 +401,98 @@ describe('tool layer', () => {
       expect(url).toContain('/REST/2.0/queue/8/rights/bulk');
       expect(requestBody()).toEqual({ grant: [{ Right: 'CreateTicket', Group: 'Everyone' }] });
     });
+
+    // Each of these descriptions once said something a live RT contradicted.
+    // They are the only account of RT's behaviour the AI gets, so a wrong one
+    // is worse than none.
+    describe('descriptions match what RT returns', () => {
+      // The description used to tell the AI a user member could not be named by
+      // any tool here. get_group resolves one: its Members carry the username
+      // as the id, where the members collection carries the numeric id.
+      it('list_group_members sends the AI to get_group for member names', () => {
+        const description = tool('list_group_members').description ?? '';
+
+        expect(description).toContain('get_group');
+        expect(description).not.toMatch(/cannot be resolved/i);
+      });
+
+      // The parameters said "User ID" and "Group ID" for both tools. RT resolves
+      // a username on the revoke path and in the list filter — verified 204 and
+      // a matching row — so only the group half was true. The group half matters
+      // more, not less: a group name answers 404 on revoke, and in list_rights
+      // matches nothing, which reads as "no rights granted" rather than an error.
+      it('revoke_right says a group needs its ID and a user does not', () => {
+        const properties = schemaProperties('revoke_right') as Record<string, { description: string }>;
+
+        expect(properties.User.description).toMatch(/username/i);
+        expect(properties.Group.description).toMatch(/numeric group ID/i);
+        const description = tool('revoke_right').description ?? '';
+        expect(description).toContain('grant_rights');
+        // The two causes of a 404 are indistinguishable, so an AI that passed a
+        // name reads it as "that right was not granted" and moves on.
+        expect(description).toMatch(/never granted/i);
+      });
+
+      it('list_rights says the same of its filters', () => {
+        const properties = schemaProperties('list_rights') as Record<string, { description: string }>;
+
+        expect(properties.user.description).toMatch(/username/i);
+        expect(properties.group.description).toMatch(/numeric group ID/i);
+        expect(properties.group.description).toMatch(/empty list rather than an error/i);
+      });
+
+      // grant_rights resolves either form, so its own descriptions stay as they
+      // are — the asymmetry is what revoke_right has to spell out.
+      it('grant_rights still says a group can be named', () => {
+        const properties = schemaProperties('grant_rights') as Record<string, { description: string }>;
+
+        expect(properties.Group.description).toMatch(/name or ID/i);
+      });
+
+      // The description named General, Admin and Status, and omitted Staff. All
+      // four are real, but they are not a fixed set: a group offers only Admin
+      // and Staff, and Status appears on a queue only once a lifecycle reserves
+      // a transition behind a named right — RT registers those under Status via
+      // RT::Queue->AddRight, so a custom sign-off right shows up there and
+      // nowhere else.
+      it('get_available_rights names the categories RT actually returns', () => {
+        const description = tool('get_available_rights').description ?? '';
+
+        for (const category of ['General', 'Staff', 'Admin', 'Status']) {
+          expect(description).toContain(category);
+        }
+      });
+
+      // Naming the four is not enough on its own: the set varies by object, so
+      // the AI has to be told to read them back rather than rely on the list.
+      it('get_available_rights says the categories vary by object', () => {
+        const description = tool('get_available_rights').description ?? '';
+
+        expect(description).toMatch(/depends on the object/i);
+        expect(description).toMatch(/read the categories from the response/i);
+      });
+
+      // The Status category is only useful if the AI knows what puts a right
+      // there — a lifecycle gating a transition.
+      it('get_available_rights ties the Status category to lifecycle transitions', () => {
+        const description = tool('get_available_rights').description ?? '';
+        const clause = description.match(/[^.]*Status category[^.]*/)?.[0] ?? '';
+
+        expect(clause).toMatch(/transition/i);
+        expect(clause).toMatch(/lifecycle/i);
+      });
+
+      // RT does fill in a missing defaults.on_create, but in memory as it loads
+      // the config, so get_lifecycle still shows the key absent. An AI told only
+      // that RT backfills it reads that absence as damage and tries to repair it.
+      it('update_lifecycle says the filled-in defaults stay absent from get_lifecycle', () => {
+        const description = tool('update_lifecycle').description ?? '';
+
+        expect(description).toContain('defaults.on_create');
+        expect(description).toContain('get_lifecycle');
+        expect(description).toMatch(/in memory/i);
+      });
+    });
   });
 
   // The other bundled-data reader: this tool answers from data/ rather than RT,
