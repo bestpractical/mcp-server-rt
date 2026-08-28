@@ -377,6 +377,138 @@ rather than globally, plus an auth token for that user:
 - The AI reports those fields as present but unreadable, **not** as missing, and does not
   claim the queue has no custom fields
 
+## 15. Queue Administration
+
+These exercise the administration tools directly, rather than through the create-queue
+prompt. Use a disposable queue name — RT cannot delete a queue, only disable it.
+
+**Prompt:** `What lifecycles are available?`
+
+**Expected:** `list_lifecycles` returns each lifecycle with its statuses, not just names.
+
+**Prompt:** `Create a lifecycle called [name] based on default`
+
+**Expected:** `create_lifecycle` with `Clone`. Cloning carries the whole configuration
+across — statuses, transitions, actions, colours and the per-status descriptions — which
+matters because a later `update_lifecycle` drops every key the AI leaves out.
+
+**Prompt:** `Show me the [name] lifecycle and which queues use it`
+
+**Expected:** `get_lifecycle` returns the stored configuration plus `used_by`, naming the
+queues on that lifecycle. Two defaults RT applies at load time are not in the response:
+a missing `defaults.on_create` falls back to the first initial status, and a transition
+with no entry in `rights` needs ModifyTicket (DeleteTicket for a move to deleted). Their
+absence here is normal, not damage to repair.
+
+**Prompt:** `Create a queue called [name] using the default lifecycle`
+
+**Expected:** `create_queue` called; the queue exists in RT under Admin > Queues.
+
+**Prompt:** `Change [queue]'s description to "[text]" and set its correspond address to [address]`
+
+**Expected:** `update_queue` returns one message per field it attempted. It applies each
+field independently and reports success overall even when one of them failed, so the AI
+has to read every message rather than trust that the call returned.
+
+**Prompt:** `Create a group called [name] and add me to it`
+
+**Expected:** `create_group`, then `add_group_members` with your numeric user ID —
+resolved via `get_current_user` or `lookup_user`, since the member argument takes IDs.
+
+**Prompt:** `Who is in [group name]?`
+
+**Expected:** `get_group`, not `list_group_members`. The members collection returns only
+an id and a type, and ignores a `fields` parameter; `get_group` returns the same
+membership already resolved — a user member carries its username as its id, a group
+member its numeric id. An AI that reaches for the collection gets bare numbers, and must
+describe them as ids rather than inventing names.
+
+**Prompt:** `Remove [user] from [group]`
+
+**Expected:** `remove_group_member` returns nothing at all — RT answers a successful
+delete with 204 and no body. Absence of a message is success here, not a silent failure.
+Confirm with `get_group`.
+
+**Prompt:** `What groups exist?`
+
+**Expected:** `list_groups` returns names and descriptions, not bare IDs.
+
+**Prompt:** `Add a select custom field called [name] with values Red and Green to [queue]`
+
+**Expected:** `create_custom_field`, then `add_custom_field_value` per value, then
+`apply_custom_field` to the queue. Confirm in RT that the field appears on that queue
+and offers both values.
+
+**Prompt:** `What custom fields already exist matching "[term]"?`
+
+**Expected:** `search_custom_fields` returns names, types, and lookup types — not bare IDs.
+
+Note the `Type` filter matches RT's stored base type — `Select`, `Freeform`, `Text` — not
+the composite name `create_custom_field` takes. Asking for `SelectSingle` returns an empty
+list with no error, which reads as "no such fields exist".
+
+**Prompt:** `What is [custom field] applied to?`
+
+**Expected:** `list_custom_field_applications` names each object the field is applied to,
+rather than returning bare object ids.
+
+**Prompt:** `Stop using [custom field] on [queue]`
+
+**Expected:** `remove_custom_field_application` returns nothing — 204 again. The custom
+field itself survives; only its application to that queue is removed. Confirm with
+`list_custom_field_applications` and with `get_queue_fields` on the queue.
+
+**Prompt:** `What rights can I grant on [queue]?`
+
+**Expected:** `get_available_rights` groups rights by category, and which categories come
+back depends on the object: General, Staff and Admin on a queue, only Admin and Staff on a
+group. A queue whose lifecycle reserves a transition behind a named right also carries a
+`Status` category holding that right. The AI should read the categories from the response
+rather than assume a fixed set.
+
+**Prompt:** `Let Everyone create tickets in [queue] and let [group] own them`
+
+**Expected:** `grant_rights` for each principal. Verify under Admin > Queues > Group
+Rights. A right granted globally versus on the queue goes to a different path, so check
+it landed on the queue rather than system-wide.
+
+**Prompt:** `Who has rights on [queue]?`
+
+**Expected:** `list_rights` returns each right with its principal.
+
+**Prompt:** `Take CreateTicket away from [group] on [queue]`
+
+**Expected:** `revoke_right` returns nothing — another 204. Verify with `list_rights`: the
+grant count drops by one and every other grant is untouched. Revoking a right that was
+never granted is an error rather than a silent pass — RT answers 404 on a queue, because
+`resource_exists` looks for the ACE first, and 500 globally, where that check is skipped
+and `RevokeRight` fails instead. Either way the AI sees a failure, not success.
+
+**Prompt:** `Set [group] as AdminCc on [queue]`
+
+**Expected:** `manage_queue_watchers`. A group has to be passed as `group:Group Name`;
+if the AI passes a bare name RT looks it up as a user and the call reports failure
+**while still returning success overall** — the AI must read the messages and say so.
+
+**Prompt:** `Check whether this lifecycle change is valid before applying it: [change]`
+
+**Expected:** `validate_lifecycle` first, then `update_lifecycle` only if valid. Note
+`update_lifecycle` replaces the whole configuration — any key omitted is dropped.
+
+**Prompt:** `Map [lifecycle]'s statuses onto default`
+
+**Expected:** `update_lifecycle_maps`, and RT echoes the map back. Check it under
+Admin > Lifecycles; the maps are stored separately from the lifecycle itself, so an
+`update_lifecycle` that drops other keys leaves these intact.
+
+**Prompt:** `Delete the lifecycle [name I just created]`
+
+**Expected:** `delete_lifecycle` succeeds and reports success. RT answers a successful
+delete with 204 and no body, so a client that insists on parsing one would error here
+even though the delete worked.
+
+---
+
 ## Automated Prompt Testing with Dual Agents
 
 This section describes how to test MCP prompts (like `/mcp__rt__create-queue`) end-to-end using two Claude Code sub-agents: one playing the AI consultant role and one playing the end user. The orchestrating session relays messages between them.

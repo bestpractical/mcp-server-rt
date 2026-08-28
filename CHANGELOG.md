@@ -8,6 +8,10 @@
 - AI instructions for the above. `QUEUE SETUP` gives the order the tools are meant to be used in, and `PARTIAL UPDATES` warns that `update_ticket`, `update_queue`, and `manage_queue_watchers` apply each field independently and return success even when some of those fields failed — a response can read `["That user does not exist", "Subject changed from 'x' to 'y'"]`, meaning the rename applied and the owner was silently left alone. The most common cause is a name RT could not resolve: a group has to be written as `group:Group Name` or it is looked up as a user and fails.
 - `manifest.json` now lists all 43 tools. It had drifted to 31, so twelve implemented tools were invisible to anyone browsing the desktop extension. The array is documentation only — `tools/list` is built from the code — so the omission cost discovery rather than access.
 
+### Documentation
+- README documents the 26 administration tools and the `create-queue` prompt, which had never appeared there, and names the RT 6.0.3 dependency next to the general RT 6.0 requirement. The tools table is split into ticket work and queue administration.
+- TESTING.md gains a live plan for the administration tools — section 15 — alongside the ported guide for driving the `create-queue` prompt with paired agents. The section calls out the two places RT's behaviour surprises a caller: a group watcher has to be passed as `group:Group Name` or the call reports failure inside an otherwise successful response, and a successful `delete_lifecycle` answers 204 with no body.
+
 ### Requirements
 - The lifecycle and rights tools need **RT 6.0.3 or later**. RT's REST2 `Lifecycle` and `Rights` resources were added in that release; the queue, group, and custom field tools work against earlier RT 6.0.x. This is why the release is 0.3.0 rather than 0.2.2.
 
