@@ -402,6 +402,22 @@ describe('tool layer', () => {
     });
   });
 
+  // manifest.json's tool array is documentation for the extension listing —
+  // tools/list is built from TOOLS — so drift costs discovery rather than
+  // access. It had drifted by twelve entries before anyone noticed.
+  describe('manifest.json', () => {
+    it('lists exactly the implemented tools', async () => {
+      const { readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const manifest = JSON.parse(
+        readFileSync(join(process.cwd(), 'manifest.json'), 'utf8'),
+      ) as { tools: { name: string }[] };
+
+      expect(manifest.tools.map((t) => t.name).sort())
+        .toEqual(TOOLS.map((t) => t.name).sort());
+    });
+  });
+
   describe('unknown tools', () => {
     it('throws for a tool name that does not exist', async () => {
       await expect(callTool(rt, 'no_such_tool', {})).rejects.toThrow('Unknown tool: no_such_tool');
