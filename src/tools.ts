@@ -488,7 +488,7 @@ export const TOOLS: Tool[] = [
       properties: {
         fields: {
           type: 'string',
-          description: 'Comma-separated fields to include (default: Name,Description,Disabled)',
+          description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.groups}) rather than adding to it.`,
         },
       },
     },
@@ -522,7 +522,11 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'list_group_members',
-    description: 'List the members of a group',
+    description:
+      'List the members of a group. RT returns only an id and a type (user or group) per ' +
+      'member — this collection ignores a fields parameter, so names cannot be requested. ' +
+      'Resolve a group member with get_group. A user member cannot be resolved by id with ' +
+      'any tool here, so describe such members by id rather than inventing a name.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
@@ -850,7 +854,7 @@ export const TOOLS: Tool[] = [
         Name:       { type: 'string', description: 'Search by name (use LIKE operator for partial match)' },
         Type:       { type: 'string', description: 'Filter by the stored base type — Select, Freeform, Text, HTML and so on. Not the composite name create_custom_field takes: SelectSingle matches nothing.' },
         LookupType: { type: 'string', description: 'Filter by what it applies to (e.g. RT::Queue-RT::Ticket)' },
-        fields:     { type: 'string', description: 'Comma-separated fields to include (default: Name,Type,LookupType,Description,Disabled)' },
+        fields:     { type: 'string', description: `Comma-separated fields to include. Replaces the default (${DEFAULT_FIELDS.customFields}) rather than adding to it.` },
         per_page:   { type: 'integer', description: 'Results per page (max 100, default 20)' },
         page:       { type: 'integer', description: 'Page number (default 1)' },
       },
@@ -1186,7 +1190,7 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       if (Type) query.push({ field: 'Type', value: Type as string });
       if (LookupType) query.push({ field: 'LookupType', value: LookupType as string });
       return rt.searchCustomFields(query, {
-        fields: (fields as string | undefined) ?? 'Name,Type,LookupType,Description,Disabled',
+        fields: fields as string | undefined,
         per_page: per_page as number | undefined,
         page: page as number | undefined,
       });

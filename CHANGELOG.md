@@ -12,6 +12,8 @@
 - The lifecycle and rights tools need **RT 6.0.3 or later**. RT's REST2 `Lifecycle` and `Rights` resources were added in that release; the queue, group, and custom field tools work against earlier RT 6.0.x. This is why the release is 0.3.0 rather than 0.2.2.
 
 ### Fixed
+- `list_groups` and `search_custom_fields` no longer return id-only stubs. Both schemas already documented a default field set, but the client sent none, so RT answered with nothing but IDs. The documented defaults are now actually sent, and the descriptions interpolate them so the two cannot drift apart again. `list_custom_field_applications`, `list_rights`, and `list_lifecycles` needed no change — RT returns usable data from those without being asked.
+- `list_group_members` says what RT actually returns. That collection ignores a `fields` parameter, so it yields only an id and a type per member; the description now says so, points at `get_group` for group members, and tells the AI to describe a user member by id rather than inventing a name it had no way to look up.
 - A successful `DELETE` that returns 204 with no body no longer throws. `request` always tried to parse a response body, so `delete_lifecycle` failed on every successful delete.
 
 ### Internal

@@ -1069,6 +1069,48 @@ describe('RTClient', () => {
     });
   });
 
+  // RT's collection endpoints return id-only stubs unless asked for fields, the
+  // same defect 0.2.2 fixed for tickets, users and attachments.
+  describe('collection defaults on the administration tools', () => {
+    function params(callIndex = 0): URLSearchParams {
+      const [url] = mockFetch.mock.calls[callIndex] as [string];
+      return new URL(url).searchParams;
+    }
+
+    it('listGroups asks for names and descriptions', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listGroups();
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Name');
+      expect(fields).toContain('Description');
+    });
+
+    it('listGroups lets the caller override the default', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listGroups('Name');
+
+      expect(params().get('fields')).toBe('Name');
+    });
+
+    it('searchCustomFields asks for the type and lookup type', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.searchCustomFields([{ field: 'Name', operator: 'LIKE', value: 'x' }]);
+
+      const fields = params().get('fields') ?? '';
+      expect(fields).toContain('Name');
+      expect(fields).toContain('Type');
+      expect(fields).toContain('LookupType');
+    });
+
+    it('searchCustomFields lets the caller override the default', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.searchCustomFields([], { fields: 'Name' });
+
+      expect(params().get('fields')).toBe('Name');
+    });
+  });
+
   // Queue and group administration, ported with the queue-creation work.
   describe('createQueue', () => {
     it('POSTs to the queue endpoint', async () => {

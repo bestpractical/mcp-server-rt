@@ -172,6 +172,8 @@ export const DEFAULT_FIELDS = {
   attachments: 'Filename,ContentType,ContentLength,Subject',
   users: 'Name,RealName,EmailAddress,Disabled',
   queues: 'Name,Description,Lifecycle,Disabled,SubjectTag,CorrespondAddress,CommentAddress',
+  groups: 'Name,Description,Disabled',
+  customFields: 'Name,Type,Description,LookupType,MaxValues,Disabled',
 };
 
 // How RT renders a custom field value, keyed by CF type. RT dispatches display
@@ -735,7 +737,7 @@ export class RTClient {
 
   // Group operations
   listGroups(fields?: string): Promise<unknown> {
-    return this.request('GET', 'groups', undefined, { fields });
+    return this.request('GET', 'groups', undefined, { fields: fields ?? DEFAULT_FIELDS.groups });
   }
 
   getGroup(idOrName: string): Promise<unknown> {
@@ -771,7 +773,7 @@ export class RTClient {
 
   searchCustomFields(query: object[], opts: { fields?: string; per_page?: number; page?: number } = {}): Promise<unknown> {
     return this.request('POST', 'customfields', query, {
-      fields: opts.fields,
+      fields: opts.fields ?? DEFAULT_FIELDS.customFields,
       per_page: opts.per_page,
       page: opts.page,
     });
