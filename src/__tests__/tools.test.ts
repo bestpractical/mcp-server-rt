@@ -380,13 +380,26 @@ describe('tool layer', () => {
       mockFetch.mockReturnValueOnce(mockResponse([]));
       await callTool(rt, 'grant_rights', {
         object_type: 'global',
-        principal_type: 'group',
-        principal_id: 'Everyone',
-        rights: ['CreateTicket'],
+        Right: 'CreateTicket',
+        Group: 'Everyone',
       });
 
       const [url] = mockFetch.mock.calls[0] as [string];
       expect(url).toContain('/REST/2.0/global/rights');
+      expect(requestBody()).toEqual({ Right: 'CreateTicket', Group: 'Everyone' });
+    });
+
+    it('sends a bulk grant under the queue it names', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ granted: [], revoked: [] }));
+      await callTool(rt, 'grant_rights', {
+        object_type: 'queue',
+        object_id: '8',
+        grants: [{ Right: 'CreateTicket', Group: 'Everyone' }],
+      });
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/queue/8/rights/bulk');
+      expect(requestBody()).toEqual({ grant: [{ Right: 'CreateTicket', Group: 'Everyone' }] });
     });
   });
 

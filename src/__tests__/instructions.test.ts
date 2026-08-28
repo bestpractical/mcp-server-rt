@@ -154,6 +154,22 @@ describe('buildInstructions', () => {
     });
   });
 
+  // list_lifecycles returns 403 to anyone without SuperUser, and it is step one
+  // of the queue setup flow, so an AI needs to recognise a rights problem rather
+  // than report the tool as broken.
+  describe('queue setup rights guidance', () => {
+    it('names the rights the setup tools need', () => {
+      expect(instructions).toMatch(/SuperUser/);
+      expect(instructions).toMatch(/AdminQueue/);
+      expect(instructions).toMatch(/AdminGroup\b/);
+      expect(instructions).toMatch(/AdminGroupMembership/);
+    });
+
+    it('tells the AI what a Forbidden response means here', () => {
+      expect(instructions).toMatch(/403|Forbidden/);
+    });
+  });
+
   describe('reminder status guidance', () => {
     // The instructions used to say a reminder's active status is "open".
     // The status a reminder starts in is set by the queue lifecycle —

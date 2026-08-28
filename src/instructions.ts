@@ -106,6 +106,13 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     '(5) grant_rights to set up permissions for Everyone, Requestor role, and staff group,\n' +
     '(6) manage_queue_watchers to assign Cc/AdminCc members.\n' +
     'Always confirm the plan with the user before making changes.\n\n' +
+    'These tools need administrative rights, and RT answers 403 Forbidden when they are ' +
+    'missing: every lifecycle tool requires SuperUser, create_queue and update_queue require ' +
+    'AdminQueue, create_group requires AdminGroup, and add_group_members requires ' +
+    'AdminGroupMembership. A Forbidden here ' +
+    'means the account lacks the right, not that the tool is broken — say which right is ' +
+    'needed rather than retrying. list_lifecycles is the first step and the most likely to ' +
+    'fail this way, so check it before promising the user a plan you cannot carry out.\n\n' +
     'PARTIAL UPDATES: update_ticket, update_queue, and manage_queue_watchers apply each ' +
     'field independently, and they return success even when some of those fields failed. ' +
     'The result is an array holding one message per attempted change, successes and failures ' +
