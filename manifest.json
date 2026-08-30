@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "mcp-server-rt",
   "display_name": "RT (Request Tracker)",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "MCP server for RT (Request Tracker) — search tickets, manage queues, add comments and replies, and update ticket fields.",
-  "long_description": "Connects Claude to a live RT (Request Tracker) instance via the REST2 API. Supports searching tickets with TicketSQL, reading ticket details and history, creating and updating tickets (including custom fields, custom roles, links, and date fields), adding comments and replies, and looking up queues and users.",
+  "long_description": "Connects Claude to a live RT (Request Tracker) instance via the REST2 API. Supports searching tickets with TicketSQL, reading ticket details and history, creating and updating tickets (including custom fields, custom roles, links, and date fields), adding comments and replies, and looking up queues and users. Also builds and administers a queue end to end — queues, lifecycles, groups and their members, custom fields, rights, and watchers — with a guided create-queue prompt that works out the workflow with you before anything is changed. The queue administration tools need RT 6.0.3 or later.",
   "author": {
     "name": "Best Practical Solutions, LLC",
     "url": "https://bestpractical.com"

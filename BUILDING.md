@@ -65,9 +65,9 @@ npm publish --access public
 ### 3. Create a GitHub release
 
 ```bash
-gh release create v0.2.1 mcp-server-rt.mcpb \
-  --title "v0.2.1" \
-  --notes "$(sed -n '/^## \[0.2.1\]/,/^## \[/p' CHANGELOG.md | head -n -1)"
+gh release create v0.3.0 mcp-server-rt.mcpb \
+  --title "v0.3.0" \
+  --notes "$(sed -n '/^## \[0.3.0\]/,/^## \[/p' CHANGELOG.md | head -n -1)"
 ```
 
 Or create the release manually on GitHub and attach `mcp-server-rt.mcpb` as a release asset.

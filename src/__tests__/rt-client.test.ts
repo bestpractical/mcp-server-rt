@@ -1144,7 +1144,7 @@ describe('RTClient', () => {
   });
 
   // RT's collection endpoints return id-only stubs unless asked for fields, the
-  // same defect 0.2.2 fixed for tickets, users and attachments.
+  // same defect fixed earlier for tickets, users and attachments.
   describe('collection defaults on the administration tools', () => {
     function params(callIndex = 0): URLSearchParams {
       const [url] = mockFetch.mock.calls[callIndex] as [string];
