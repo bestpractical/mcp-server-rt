@@ -676,6 +676,41 @@ describe('RTClient', () => {
       expect(url).toContain('/REST/2.0/queue/General');
     });
 
+    // RT only rejects an all-digit name, so #, ? and % are all legal in a queue
+    // name and all three change what the path means: "Support #1" truncates at
+    // the fragment, "R&D?x" grows a query string, "100% Club" is a bad escape.
+    it.each([
+      ['Support #1', 'queue/Support%20%231'],
+      ['R&D?x', 'queue/R%26D%3Fx'],
+      ['100% Club', 'queue/100%25%20Club'],
+    ])('getQueue encodes %s', async (name, expected) => {
+      mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+      await client.getQueue(name);
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain(expected);
+      expect(new URL(url).search).toBe('');
+    });
+
+    // rightsObjectPath builds two segments, so it encodes them itself; wrapping
+    // its result would escape the separating slash.
+    // object_id is optional in the schemas only because "global" takes none.
+    // Omitting it for anything else used to build an empty path segment.
+    // The guard runs before the request, so it throws synchronously rather
+    // than returning a rejected promise.
+    it.each(['queue', 'group', 'customfield'])('refuses %s without an object_id', (type) => {
+      expect(() => client.listRights(type)).toThrow(/object_id is required/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('keeps the separator in a rights path unescaped', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
+      await client.listRights('queue', 'R&D');
+
+      const [url] = mockFetch.mock.calls[0] as [string];
+      expect(url).toContain('/REST/2.0/queue/R%26D/rights');
+    });
+
     it('listQueues calls the all endpoint', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ items: [] }));
       await client.listQueues();

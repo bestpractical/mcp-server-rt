@@ -277,6 +277,14 @@ function convertDates(fields: object): Record<string, unknown> {
   return result;
 }
 
+// RT only rejects an all-digit name (RT::Record::ValidateName), so a queue,
+// group or lifecycle name may contain #, ? or %, each of which changes what a
+// URL path means: "Support #1" truncates at the fragment, "R&D?x" grows a query
+// string, and "100% Club" is an invalid escape. Encode every segment we
+// interpolate. A name containing / stays unreachable — RT's own [^/]+ route
+// cannot match one either.
+const seg = (value: string | number): string => encodeURIComponent(String(value));
+
 export class RTClient {
   private url: string;
   private token: string;
@@ -369,7 +377,7 @@ export class RTClient {
   }
 
   getTicket(id: number, opts: GetTicketOptions = {}): Promise<unknown> {
-    return this.request('GET', `ticket/${id}`, undefined, {
+    return this.request('GET', `ticket/${seg(id)}`, undefined, {
       fields: opts.fields,
     }, opts.subfields);
   }
@@ -433,11 +441,11 @@ export class RTClient {
           'and Delete<Relation> to remove them, e.g. AddRefersTo or DeleteRefersTo.',
       );
     }
-    return this.request('PUT', `ticket/${id}`, formatDescription(convertDates(fields)));
+    return this.request('PUT', `ticket/${seg(id)}`, formatDescription(convertDates(fields)));
   }
 
   getTicketHistory(id: number, opts: CollectionOptions = {}): Promise<unknown> {
-    return this.request('GET', `ticket/${id}/history`, undefined, {
+    return this.request('GET', `ticket/${seg(id)}/history`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
       fields: opts.fields ?? DEFAULT_FIELDS.history,
@@ -447,19 +455,19 @@ export class RTClient {
   ticketComment(id: number, fields: MessageFields): Promise<unknown> {
     const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
     if (body.Content !== undefined && body.ContentType === undefined) body.ContentType = 'text/plain';
-    return this.request('POST', `ticket/${id}/comment`, body);
+    return this.request('POST', `ticket/${seg(id)}/comment`, body);
   }
 
   ticketCorrespond(id: number, fields: MessageFields): Promise<unknown> {
     const body = { ...fields, Attachments: fields.Attachments?.map(resolveAttachment) };
     if (body.Content !== undefined && body.ContentType === undefined) body.ContentType = 'text/plain';
-    return this.request('POST', `ticket/${id}/correspond`, body);
+    return this.request('POST', `ticket/${seg(id)}/correspond`, body);
   }
 
   // Attachment operations
 
   getTicketAttachments(id: number, opts: CollectionOptions = {}): Promise<unknown> {
-    return this.request('GET', `ticket/${id}/attachments`, undefined, {
+    return this.request('GET', `ticket/${seg(id)}/attachments`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
       fields: opts.fields ?? DEFAULT_FIELDS.attachments,
@@ -467,7 +475,7 @@ export class RTClient {
   }
 
   async getAttachment(id: number): Promise<unknown> {
-    const a = (await this.request('GET', `attachment/${id}`)) as {
+    const a = (await this.request('GET', `attachment/${seg(id)}`)) as {
       ContentType?: string;
       Content?: string;
       [key: string]: unknown;
@@ -479,7 +487,7 @@ export class RTClient {
   }
 
   async saveAttachment(id: number, destPath: string): Promise<{ savedTo: string; size: number }> {
-    const a = (await this.request('GET', `attachment/${id}`)) as {
+    const a = (await this.request('GET', `attachment/${seg(id)}`)) as {
       Filename?: string;
       Content?: string;
       [key: string]: unknown;
@@ -505,7 +513,7 @@ export class RTClient {
   // Queue operations
 
   getQueue(idOrName: string): Promise<unknown> {
-    return this.request('GET', `queue/${idOrName}`);
+    return this.request('GET', `queue/${seg(idOrName)}`);
   }
 
   listQueues(fields: string | undefined = DEFAULT_FIELDS.queues): Promise<unknown> {
@@ -519,7 +527,7 @@ export class RTClient {
     if (!userId || isNaN(Number(userId))) {
       throw new Error('Could not determine user ID from RT token format');
     }
-    const user = (await this.request('GET', `user/${userId}`)) as Record<string, unknown>;
+    const user = (await this.request('GET', `user/${seg(userId)}`)) as Record<string, unknown>;
     const keep = ['id', 'Name', 'RealName', 'EmailAddress', 'Organization', 'Lang', 'Timezone', 'Privileged', 'Disabled'];
     return Object.fromEntries(keep.filter((k) => k in user).map((k) => [k, user[k]]));
   }
@@ -527,7 +535,7 @@ export class RTClient {
   // Transaction operations
 
   async getTransaction(id: number): Promise<unknown> {
-    const txn = (await this.request('GET', `transaction/${id}`)) as {
+    const txn = (await this.request('GET', `transaction/${seg(id)}`)) as {
       _hyperlinks?: Array<{ ref: string; _url: string; id?: number }>;
       [key: string]: unknown;
     };
@@ -541,7 +549,7 @@ export class RTClient {
       .filter((id): id is number => id !== null);
 
     const attachments = await Promise.allSettled(
-      attachmentRefs.map((id) => this.request('GET', `attachment/${id}`)),
+      attachmentRefs.map((id) => this.request('GET', `attachment/${seg(id)}`)),
     );
 
     const decodedAttachments = attachments
@@ -581,7 +589,7 @@ export class RTClient {
   // list — report it with what the queue already told us instead.
   private async expandCustomFields(refs: CustomFieldRef[]): Promise<unknown[]> {
     const results = await Promise.allSettled(
-      refs.map((cf) => this.request('GET', `customfield/${cf.id}`)),
+      refs.map((cf) => this.request('GET', `customfield/${seg(cf.id)}`)),
     );
 
     return results.map((result, i) => {
@@ -606,7 +614,7 @@ export class RTClient {
   }
 
   async getQueueFields(idOrName: string): Promise<QueueFieldsResult> {
-    const queue = (await this.request('GET', `queue/${idOrName}`)) as {
+    const queue = (await this.request('GET', `queue/${seg(idOrName)}`)) as {
       id: number;
       Name: string;
       Lifecycle: string;
@@ -641,7 +649,13 @@ export class RTClient {
   // Rights operations
   private rightsObjectPath(objectType: string, objectId?: string): string {
     if (objectType === 'global') return 'global';
-    return `${objectType}/${objectId}`;
+    // Every other object type needs an id. The schemas mark object_id optional
+    // because "global" omits it; without this, a missing one reaches RT as an
+    // empty path segment and comes back an opaque 404.
+    if (objectId === undefined || objectId === '') {
+      throw new Error(`object_id is required when object_type is "${objectType}"; only "global" omits it`);
+    }
+    return `${seg(objectType)}/${seg(objectId)}`;
   }
 
   // Queue write operations
@@ -650,7 +664,7 @@ export class RTClient {
   }
 
   updateQueue(idOrName: string, fields: Record<string, unknown>): Promise<unknown> {
-    return this.request('PUT', `queue/${idOrName}`, fields);
+    return this.request('PUT', `queue/${seg(idOrName)}`, fields);
   }
 
   // Lifecycle operations
@@ -659,7 +673,7 @@ export class RTClient {
   }
 
   getLifecycle(name: string): Promise<unknown> {
-    return this.request('GET', `lifecycle/${name}`);
+    return this.request('GET', `lifecycle/${seg(name)}`);
   }
 
   createLifecycle(data: Record<string, unknown>): Promise<unknown> {
@@ -667,19 +681,19 @@ export class RTClient {
   }
 
   updateLifecycle(name: string, data: Record<string, unknown>): Promise<unknown> {
-    return this.request('PUT', `lifecycle/${name}`, data);
+    return this.request('PUT', `lifecycle/${seg(name)}`, data);
   }
 
   updateLifecycleMaps(name: string, maps: Record<string, unknown>): Promise<unknown> {
-    return this.request('PUT', `lifecycle/${name}/maps`, maps);
+    return this.request('PUT', `lifecycle/${seg(name)}/maps`, maps);
   }
 
   validateLifecycle(name: string, data: Record<string, unknown>): Promise<unknown> {
-    return this.request('POST', `lifecycle/${name}/validate`, data);
+    return this.request('POST', `lifecycle/${seg(name)}/validate`, data);
   }
 
   deleteLifecycle(name: string): Promise<unknown> {
-    return this.request('DELETE', `lifecycle/${name}`);
+    return this.request('DELETE', `lifecycle/${seg(name)}`);
   }
 
   getAvailableRights(objectType: string, objectId?: string): Promise<unknown> {
@@ -700,7 +714,7 @@ export class RTClient {
   }
 
   revokeRight(objectType: string, objectId: string | undefined, right: string, principalType: string, principalId: string): Promise<unknown> {
-    return this.request('DELETE', `${this.rightsObjectPath(objectType, objectId)}/rights/${right}/${principalType}/${principalId}`);
+    return this.request('DELETE', `${this.rightsObjectPath(objectType, objectId)}/rights/${seg(right)}/${seg(principalType)}/${seg(principalId)}`);
   }
 
   bulkRights(objectType: string, objectId: string | undefined, data: object): Promise<unknown> {
@@ -713,23 +727,23 @@ export class RTClient {
   }
 
   addCustomFieldValue(cfId: number, fields: object): Promise<unknown> {
-    return this.request('POST', `customfield/${cfId}/value`, fields);
+    return this.request('POST', `customfield/${seg(cfId)}/value`, fields);
   }
 
   addCustomFieldValues(cfId: number, values: object[]): Promise<unknown> {
-    return this.request('POST', `customfield/${cfId}/value`, values);
+    return this.request('POST', `customfield/${seg(cfId)}/value`, values);
   }
 
   applyCustomField(cfId: number, objectId: number): Promise<unknown> {
-    return this.request('POST', `customfield/${cfId}/appliesto`, { ObjectId: objectId });
+    return this.request('POST', `customfield/${seg(cfId)}/appliesto`, { ObjectId: objectId });
   }
 
   removeCustomFieldApplication(cfId: number, objectId: number): Promise<unknown> {
-    return this.request('DELETE', `customfield/${cfId}/appliesto/object/${objectId}`);
+    return this.request('DELETE', `customfield/${seg(cfId)}/appliesto/object/${seg(objectId)}`);
   }
 
   listCustomFieldApplications(cfId: number, opts: { per_page?: number; page?: number } = {}): Promise<unknown> {
-    return this.request('GET', `customfield/${cfId}/appliesto`, undefined, {
+    return this.request('GET', `customfield/${seg(cfId)}/appliesto`, undefined, {
       per_page: opts.per_page,
       page: opts.page,
     });
@@ -741,15 +755,11 @@ export class RTClient {
   }
 
   getGroup(idOrName: string): Promise<unknown> {
-    return this.request('GET', `group/${idOrName}`);
+    return this.request('GET', `group/${seg(idOrName)}`);
   }
 
   createGroup(fields: Record<string, unknown>): Promise<unknown> {
     return this.request('POST', 'group', fields);
-  }
-
-  updateGroup(idOrName: string, fields: Record<string, unknown>): Promise<unknown> {
-    return this.request('PUT', `group/${idOrName}`, fields);
   }
 
   listGroupMembers(id: string, opts: { recursively?: boolean; users?: boolean; groups?: boolean; per_page?: number; page?: number } = {}): Promise<unknown> {
@@ -760,15 +770,15 @@ export class RTClient {
     if (opts.recursively) params.recursively = 1;
     if (opts.users) params.users = 1;
     if (opts.groups) params.groups = 1;
-    return this.request('GET', `group/${id}/members`, undefined, params);
+    return this.request('GET', `group/${seg(id)}/members`, undefined, params);
   }
 
   addGroupMembers(id: string, memberIds: number[]): Promise<unknown> {
-    return this.request('PUT', `group/${id}/members`, memberIds);
+    return this.request('PUT', `group/${seg(id)}/members`, memberIds);
   }
 
   removeGroupMember(groupId: string, memberId: string): Promise<unknown> {
-    return this.request('DELETE', `group/${groupId}/member/${memberId}`);
+    return this.request('DELETE', `group/${seg(groupId)}/member/${seg(memberId)}`);
   }
 
   searchCustomFields(query: object[], opts: { fields?: string; per_page?: number; page?: number } = {}): Promise<unknown> {
