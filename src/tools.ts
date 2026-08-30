@@ -159,7 +159,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'get_ticketsql_grammar',
     description:
-      'Returns the TicketSQL grammar reference for RT 6.0.2. ' +
+      'Returns the TicketSQL grammar reference for RT 6.0.3. ' +
       'Consult this before writing any TicketSQL query — especially for Status conditions, ' +
       'date/time fields, custom fields, and link fields where syntax is non-obvious.',
     annotations: { readOnlyHint: true },

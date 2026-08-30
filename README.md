@@ -9,7 +9,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 - **Create tickets** setting initial content and all ticket metadata: status, owner, requestors, due dates, custom fields, custom roles, and links
 - **Update tickets** reply, comment, and update tickets, with the same full field support
 - **Queue and user discovery** — list queues, inspect custom field definitions, look up users by name or email
-- **TicketSQL grammar reference** — the AI can consult the full RT 6.0.2 syntax guide before constructing complex queries
+- **TicketSQL grammar reference** — the AI can consult the full RT 6.0.3 syntax guide before constructing complex queries
 - **Queue administration** — build and configure queues: lifecycles, user-defined groups and their
   members, custom fields, rights, and queue watchers
 - **Guided queue creation** — a `create-queue` prompt that interviews you about the workflow,

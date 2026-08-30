@@ -40,7 +40,7 @@
     { "name": "get_queue_fields", "description": "Get custom field definitions and lifecycle name for a queue" },
     { "name": "lookup_user", "description": "Search for RT users by name or email address" },
     { "name": "get_current_user", "description": "Get the RT user account associated with the configured auth token" },
-    { "name": "get_ticketsql_grammar", "description": "Returns the TicketSQL grammar reference for RT 6.0.2" },
+    { "name": "get_ticketsql_grammar", "description": "Returns the TicketSQL grammar reference for RT 6.0.3" },
     { "name": "create_ticket", "description": "Create a new ticket in RT" },
     { "name": "update_ticket", "description": "Update fields on an existing ticket" },
     { "name": "add_comment", "description": "Add an internal comment to a ticket (not visible to the requestor)" },

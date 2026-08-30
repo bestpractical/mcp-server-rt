@@ -505,6 +505,33 @@ describe('tool layer', () => {
       expect(grammar.length).toBeGreaterThan(1000);
       expect(grammar).toMatch(/TicketSQL/i);
     });
+
+    // The grammar is bundled, so it only tracks RT if someone updates it. The
+    // description names an RT version, and 6.0.3 is the release that added
+    // searching on a role member's custom fields — if the grammar stops
+    // covering that, the two have drifted apart again.
+    it('covers the RT version its description claims', async () => {
+      const grammar = await callTool(rt, 'get_ticketsql_grammar', {}) as string;
+      const claimed = tool('get_ticketsql_grammar').description?.match(/RT (\d+\.\d+\.\d+)/)?.[1];
+
+      expect(claimed).toBe('6.0.3');
+      expect(grammar).toMatch(/CustomField/);
+      expect(grammar).toMatch(/Owner\.CustomField|Requestor\.CustomField/);
+      expect(grammar).toMatch(/6\.0\.3/);
+    });
+
+    // An unknown custom role makes the condition vanish rather than erroring, so
+    // the query silently returns whatever the rest of it matches. Saying it
+    // "matches everything" would be wrong: that only happens when the dropped
+    // clause was the entire query.
+    it('warns that an unknown custom role drops the condition', async () => {
+      const grammar = await callTool(rt, 'get_ticketsql_grammar', {}) as string;
+      const clause = (grammar.match(/unknown \*\*custom role\*\*[\s\S]*?wrong\./)?.[0] ?? '')
+        .replace(/\s+/g, ' ');
+
+      expect(clause).toMatch(/remaining conditions/i);
+      expect(clause).not.toMatch(/matches \*\*every ticket\*\*/i);
+    });
   });
 
   // manifest.json's tool array is documentation for the extension listing —

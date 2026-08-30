@@ -334,6 +334,57 @@ Value := Literal | SpecialValue | RelativeDate | ColumnReference
   - `CustomRole.{5}.EmailAddress IS NOT NULL` - check if role is filled
 - **Natural Language**: "tickets where Engineer is alice", "tickets assigned to Sales department"
 
+### Custom Fields on Role Members (RT 6.0.3+)
+
+Search tickets by the **custom field values of the users** in a ticket role — for
+example, every ticket whose requestor reports to a given manager. Requires RT
+6.0.3; earlier versions reject the syntax.
+
+- **Roles**: Owner, Requestor, Cc, AdminCc, and custom roles
+- **Operators**: `=`, `!=`, `LIKE`, `NOT LIKE`, `IS NULL`, `IS NOT NULL`
+- **Syntax**: `<Role>.CustomField.<Name>` or `<Role>.CustomField.{<Name>}` — the
+  two forms behave identically
+- **Custom roles**: `CustomRole.{<RoleName>}.CustomField.<Name>`
+
+```ticketsql
+Owner.CustomField.Manager = 'jane'
+Requestor.CustomField.{Department} = 'Sales'
+CustomRole.{Engineer}.CustomField.Manager = 'bob'
+Requestor.CustomField.Department LIKE 'Sale'
+```
+
+**Custom field names containing spaces**: the braces alone do NOT allow spaces
+here — `Requestor.CustomField.{My Field}` is a parse error. Quote the entire
+left-hand side instead:
+
+```ticketsql
+'Requestor.CustomField.{Reporting Manager}' = 'jane'
+```
+
+**IMPORTANT - two silent failures**. Neither raises a parse error, so a query
+that returns a surprising count is more likely a name RT could not resolve than
+a real result:
+
+- An unknown or unreadable **custom field** name matches **nothing**. RT looks up
+  the field and checks `SeeCustomField`; if either fails it applies no condition
+  for that user, so `Requestor.CustomField.NoSuchField = 'jane'` returns 0
+  tickets rather than an error.
+- An unknown **custom role** name makes the condition **vanish**. RT drops the
+  clause instead of failing, so the query returns whatever the remaining
+  conditions match: `Queue = 'General' AND CustomRole.{NotARole}.CustomField.Manager = 'jane'`
+  returns every ticket in General, and with no other condition it returns the
+  whole ticket table. A result that looks unfiltered usually means the role name
+  is wrong.
+
+**NULL semantics differ from the bare role**:
+
+- `Requestor IS NULL` - tickets with **no requestor at all**
+- `Requestor.CustomField.Manager IS NULL` - tickets that **have** requestors, but
+  where at least one has no value for that field
+
+- **Natural Language**: "tickets owned by people who report to jane", "tickets
+  from the Sales department", "tickets whose requestor has no manager set"
+
 ### Watcher Groups
 
 #### OwnerGroup
@@ -1622,7 +1673,9 @@ When translating natural language to TicketSQL, follow this decision tree:
 
 ## Version Information
 
-This grammar is for RT 6.0.x and newer.
+This grammar is for RT 6.0.x and newer. One construct is newer than the rest:
+searching on the custom fields of role members (`Owner.CustomField.Manager`)
+was added in RT 6.0.3.
 
 ## References
 
