@@ -9,11 +9,16 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 - **Create tickets** setting initial content and all ticket metadata: status, owner, requestors, due dates, custom fields, custom roles, and links
 - **Update tickets** reply, comment, and update tickets, with the same full field support
 - **Queue and user discovery** — list queues, inspect custom field definitions, look up users by name or email
-- **TicketSQL grammar reference** — the AI can consult the full RT 6.0.2 syntax guide before constructing complex queries
+- **TicketSQL grammar reference** — the AI can consult the full RT 6.0.3 syntax guide before constructing complex queries
+- **Queue administration** — build and configure queues: lifecycles, user-defined groups and their
+  members, custom fields, rights, and queue watchers
+- **Guided queue creation** — a `create-queue` prompt that interviews you about the workflow,
+  recommends a configuration, confirms the plan, then builds it
 
 ## Requirements
 
-- RT 6.0 or later with REST 2.0 API enabled (included by default)
+- RT 6.0 or later with REST 2.0 API enabled (included by default). The lifecycle and
+  rights tools need RT 6.0.3 or later, which is when RT added those REST 2.0 endpoints.
 - Node.js 18 or later
 - An RT authentication token
 
@@ -91,6 +96,8 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 
 ## Tools
 
+### Tickets, queues, and users
+
 | Tool | Description |
 |------|-------------|
 | `search_tickets` | Search tickets using RT's TicketSQL query language |
@@ -105,11 +112,50 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 | `get_ticketsql_grammar` | Fetch the full TicketSQL grammar reference (for complex queries) |
 | `create_ticket` | Create a new ticket |
 | `update_ticket` | Update ticket fields (status, owner, priority, dates, watchers, links, custom fields) |
-| `add_comment` | Add an internal comment (not visible to the requestor) |
-| `add_reply` | Send a reply to the requestor |
+| `add_comment` | Add an internal comment (not visible to the requestor), optionally setting custom fields |
+| `add_reply` | Send a reply to the requestor, optionally setting custom fields |
 | `get_ticket_attachments` | List all attachments on a ticket |
 | `get_attachment` | Retrieve a single attachment by ID |
 | `save_attachment` | Save an attachment to a local file |
+
+### Queue administration
+
+Building and configuring queues. The lifecycle and rights tools need RT 6.0.3 or later.
+
+| Tool | Description |
+|------|-------------|
+| `create_queue` | Create a new queue |
+| `update_queue` | Update an existing queue's settings |
+| `manage_queue_watchers` | Set the members of a queue role (Cc, AdminCc, or a custom role) |
+| `list_groups` | List user-defined groups with names and descriptions |
+| `get_group` | Get details about a group by ID or name |
+| `create_group` | Create a new user-defined group |
+| `list_group_members` | List a group's members (RT returns IDs and types only) |
+| `add_group_members` | Add users to a group, by user ID |
+| `remove_group_member` | Remove a user from a group |
+| `create_custom_field` | Create a custom field |
+| `search_custom_fields` | Search existing custom fields before creating a duplicate |
+| `apply_custom_field` | Apply a custom field to a queue |
+| `add_custom_field_value` | Add a selectable value to a custom field |
+| `list_custom_field_applications` | List the objects a custom field is applied to |
+| `remove_custom_field_application` | Stop applying a custom field to an object |
+| `list_lifecycles` | List lifecycles with their statuses and transitions |
+| `get_lifecycle` | Get one lifecycle's full definition |
+| `create_lifecycle` | Create a lifecycle, optionally cloning an existing one |
+| `update_lifecycle` | Replace a lifecycle's configuration |
+| `update_lifecycle_maps` | Map this lifecycle's statuses onto other lifecycles |
+| `validate_lifecycle` | Check a lifecycle definition without saving it |
+| `delete_lifecycle` | Delete a lifecycle no queue or catalog uses |
+| `get_available_rights` | List the rights that can be granted on an object |
+| `list_rights` | List the rights currently granted on an object |
+| `grant_rights` | Grant rights to a user, group, or role |
+| `revoke_right` | Revoke a single right |
+
+## Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `create-queue` | Interactive consultant that discovers a team's workflow, recommends a queue configuration, confirms the plan, then builds it — queue, lifecycle, groups, rights, custom fields, and watchers |
 
 ---
 
@@ -119,9 +165,9 @@ Any client that supports MCP stdio servers should work. Consult your client's do
 
 **User:** "Show me active tickets in the Support queue with no owner."
 
-**Claude calls:** `search_tickets` with query `Queue = 'Support' AND Status = '__Active__' AND Owner = 'Nobody'`, requesting Subject, Status, Created, and Requestor fields.
+**Claude calls:** `search_tickets` with query `Queue = 'Support' AND Status = '__Active__' AND Owner = 'Nobody'`. No `fields` parameter is needed — the server sends a default set that identifies each ticket, with queue and owner as names rather than ID stubs.
 
-**Result:** A table of unowned active tickets with subject, age, and requestor, ready to assign or act on.
+**Result:** A table of unowned active tickets with subject, requestor, and when each was last updated, ready to assign or act on.
 
 ---
 

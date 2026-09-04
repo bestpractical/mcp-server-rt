@@ -48,7 +48,7 @@ The staging directory approach ensures the bundle contains only runtime files (~
 
 ### 1. Prepare
 
-Ensure all changes are committed, tests pass, and version numbers are updated in `package.json`, `manifest.json`, `server.json`, and `CHANGELOG.md`.
+Ensure all changes are committed, tests pass, and version numbers are updated in `package.json`, `package-lock.json`, `manifest.json`, `server.json`, and `CHANGELOG.md`. Running `npm install` after bumping `package.json` updates the lockfile.
 
 ```bash
 npm run build
@@ -65,9 +65,9 @@ npm publish --access public
 ### 3. Create a GitHub release
 
 ```bash
-gh release create v0.2.1 mcp-server-rt.mcpb \
-  --title "v0.2.1" \
-  --notes "$(sed -n '/^## \[0.2.1\]/,/^## \[/p' CHANGELOG.md | head -n -1)"
+gh release create v0.3.0 mcp-server-rt.mcpb \
+  --title "v0.3.0" \
+  --notes "$(sed -n '/^## \[0.3.0\]/,/^## \[/p' CHANGELOG.md | head -n -1)"
 ```
 
 Or create the release manually on GitHub and attach `mcp-server-rt.mcpb` as a release asset.

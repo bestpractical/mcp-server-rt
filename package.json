@@ -1,7 +1,7 @@
 {
   "name": "mcp-server-rt",
   "mcpName": "com.requesttracker/mcp-server-rt",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "MCP server for RT (Request Tracker)",
   "license": "GPL-2.0",
   "author": "Best Practical Solutions, LLC",
@@ -19,9 +19,11 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "TZ=UTC vitest run",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && TZ=UTC vitest run",
     "test:watch": "TZ=UTC vitest",
-    "pack": "rm -rf /tmp/mcp-server-rt-pack && mkdir /tmp/mcp-server-rt-pack && cp -r dist data manifest.json icon.png package.json /tmp/mcp-server-rt-pack/ && cd /tmp/mcp-server-rt-pack && npm install --omit=dev && cd - && mcpb pack /tmp/mcp-server-rt-pack mcp-server-rt.mcpb"
+    "prepublishOnly": "npm run build",
+    "pack": "npm run build && rm -rf /tmp/mcp-server-rt-pack && mkdir /tmp/mcp-server-rt-pack && cp -r dist data manifest.json icon.png package.json /tmp/mcp-server-rt-pack/ && cd /tmp/mcp-server-rt-pack && npm install --omit=dev && cd - && mcpb pack /tmp/mcp-server-rt-pack mcp-server-rt.mcpb"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2"

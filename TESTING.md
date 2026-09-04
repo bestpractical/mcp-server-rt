@@ -24,11 +24,14 @@ These tests require a running RT instance and a configured MCP connection. Run t
 **Prompt:** `Show me the last 5 tickets`
 
 **Expected:**
-- Calls `search_tickets` with `fields=Subject,Status,Queue,Owner,Requestor,Priority,LastUpdated,Due`
-- Includes `subfields={"Queue":"Name","Owner":"Name"}` so Queue and Owner display as human-readable names
-- Results show all those fields (omitting blanks)
+- Results show Subject, Status, Queue, Owner, Requestor, Priority, LastUpdated and Due (omitting blanks)
+- Queue and Owner read as names, not object stubs like `{"id": 1, "type": "queue"}`
 - Each ticket is displayed on one or two lines (not a bare list of IDs)
 - Ticket IDs link to the RT web UI (`/Ticket/Display.html?id=...`), not the REST API
+
+The server sends that field set itself, so the results should be the same whether or not the tool
+call carries a `fields` parameter. A call with no `fields` at all is the case worth watching: it is
+what used to come back as bare IDs.
 
 ---
 
@@ -55,7 +58,13 @@ These tests require a running RT instance and a configured MCP connection. Run t
 **Expected:**
 - Calls `get_current_user` to resolve "me"
 - Uses `Owner = 'your-username'` in the query
-- `Requestor` field may be dropped since this is a personal task view
+- `Owner` may be dropped from the display, since every row is yours and the column repeats the
+  question back
+- `Requestor` may be dropped too, since a task list is about what to do next rather than who asked
+
+A narrowed set replaces the default rather than subtracting from it, so a call that drops a field
+has to list every other field it still wants. Watch for one that passes a short `fields` and loses
+Subject or Status along with it.
 
 **Prompt:** `Show me open support tickets and who requested them`
 
@@ -75,6 +84,47 @@ These tests require a running RT instance and a configured MCP connection. Run t
 **Expected:**
 - `update_ticket` called with correct `Priority` and `Due` values
 - Due date is in the correct local timezone (verify in RT that it shows the right date)
+- `Priority` may be sent as the label `High` or as a number; both work on update
+
+**Prompt:** `Create a ticket in [queue] with subject "Priority label test" and priority High`
+
+**Expected:**
+- `create_ticket` is called with `Priority: "High"`, and the ticket ends up at the number
+  the queue's `PriorityAsString` mapping assigns to `High` (100 with RT's default mapping)
+- RT cannot resolve a label during create, so the server applies it in a follow-up update.
+  The ticket history therefore shows a priority change immediately after creation — that is
+  expected, not a bug
+- The response carries `PrioritySet` with the change RT reported, naming the label it landed
+  on (`Priority changed from 'Low' to 'High'`)
+- If the follow-up fails outright, the response carries `PriorityNotSet` instead and the AI
+  should say the ticket was created but the priority was not set
+
+**Prompt:** `Create a ticket in [queue] with priority Catastrophic` *(a label that does not exist)*
+
+**Expected:** RT does not reject the label. `SetPriority` cannot find it in the queue's
+mapping, falls back to 0 — the lowest priority — and reports success, so the ticket is
+created at priority 0. The server cannot detect this: REST2 exposes neither the queue's
+mapping nor a ticket's `PriorityAsString`, so there is nothing to validate against. What it
+can do is pass RT's own report back, so `PrioritySet` should name the label 0 maps to
+(`Low` with RT's default mapping) rather than `Catastrophic`, and the AI should notice the
+mismatch and tell you the priority was not set to what you asked for. Note that `Low` is 0
+in RT's default mapping, so an unrecognized label and a genuine `Low` are indistinguishable
+by number alone — the label RT names is the signal.
+
+The same is true on an RT with `$EnablePriorityAsString` off: every label resolves to 0.
+
+**Prompt:** `Set the priority on ticket [ID] to Catastrophic`
+
+**Expected:** Same coercion on the update path, and here RT's report is returned directly
+rather than under `PrioritySet`. The AI should read `Priority changed from ... to 'Low'` and
+tell you the label was not recognized instead of reporting the change as made.
+
+**Prompt:** (on a ticket whose multi-value `[CF name]` already holds `[existing value]`)
+`Add [new value] to the [CF name] custom field on ticket [ID]`
+
+**Expected:** The existing value survives. RT replaces the whole value set for a multi-value
+custom field, so the AI must read the current values first and send both
+(`{"Test Tags": ["Red", "Blue"]}`), not just the new one.
 
 **Prompt:** `Resolve it`
 
@@ -108,7 +158,19 @@ These tests require a running RT instance and a configured MCP connection. Run t
 **Prompt:** `Show me all my open reminders`
 
 **Expected:**
-- Searches `Type = 'reminder' AND Owner = 'your-username' AND Status = 'open'` (or `__Active__`)
+- Searches `Type = 'reminder' AND Owner = 'your-username' AND Status = '__Active__'`
+- **Not** `Status = 'open'`. This server creates reminders through the ticket API, so they
+  start in the queue lifecycle's `on_create` status — `new` in RT's default lifecycle —
+  while a reminder created from the ticket's Reminders box in the web UI starts in that
+  lifecycle's `reminder_on_open` status, `open` by default. Confirm the reminder you just
+  created in section 6 actually appears.
+
+Create a second reminder on the same ticket from the web UI and search again. Both should
+come back, in different statuses. That is the case no literal status name can cover.
+
+This is also worth running on more than one lifecycle if you have them. RT's default
+lifecycle uses `on_create => 'new'`, while RTIR's `incidents` lifecycle uses
+`on_create => 'open'` — so `Status = 'open'` silently works on RTIR and fails on stock RT.
 
 ---
 
@@ -134,13 +196,37 @@ These tests require a running RT instance and a configured MCP connection. Run t
 
 **Expected:** `add_reply` called; reply visible to requestor in RT.
 
+**Prompt:** `Add a comment to ticket [ID] saying "Investigated" and set the [CF name] custom field to [value]`
+
+**Expected:** A single `add_comment` call carrying both `Content` and `CustomFields` — not a
+separate `update_ticket` call afterwards. RT still records the custom field changes as their own
+`CustomField` transactions following the `Comment` transaction; the point is that one tool call
+does both. Multi-value fields take an array (`{"Test Tags": ["Red", "Blue"]}`). Works the same
+way with `add_reply`.
+
+**Prompt:** (on a ticket whose multi-value `[CF name]` already holds `[existing value]`)
+`Add a comment to ticket [ID] and also tag it [new value]`
+
+**Expected:** The existing value survives. RT replaces the whole value set for a multi-value
+custom field, so the AI must read the current values first and send both
+(`{"Test Tags": ["Red", "Blue"]}`), not just the new one. If `[existing value]` is gone
+afterwards, the `CustomFields` tool description is not steering the AI correctly.
+
+**Prompt:** `Add a comment to ticket [ID] and set the [misspelled CF name] custom field to [value]`
+
+**Expected:** RT ignores custom field names it does not recognize and still returns success, so
+the tool call succeeds with nothing set. The AI should not claim the field was set — the
+description warns that a success response does not confirm it.
+
 ---
 
 ## 10. Attachments
 
 **Prompt:** `What attachments are on ticket [ID]?`
 
-**Expected:** Lists attachment names, types, and sizes.
+**Expected:** Lists attachment names, types, and sizes — not a bare list of IDs. Note that an
+email body part legitimately has an empty `Filename`; the `Subject` and `ContentType` should
+still identify it.
 
 **Prompt:** `Save the attachment [name] from ticket [ID] to my Desktop`
 
@@ -156,4 +242,500 @@ These tests require a running RT instance and a configured MCP connection. Run t
 
 **Prompt:** `Look up user [name or email]`
 
-**Expected:** Returns matching RT user accounts.
+**Expected:** Returns matching accounts with real names and email addresses, not just usernames.
+
+**Prompt:** `What has happened on ticket [ID]?`
+
+**Expected:** The history is summarised from one `get_ticket_history` call — each entry showing
+its type, the field changed, and the new value. The AI should not need a `get_transaction` call
+per row just to learn what each entry was.
+
+Owner, watcher and custom field changes are the entries to check. RT stores a numeric user ID in
+`OldValue`/`NewValue` for `SetWatcher`, `AddWatcher` and `DelWatcher`, and for `CustomField` it
+stores the field's numeric ID in `Field` with the values in `OldReference`/`NewReference`. The AI
+should report those as an ID, or resolve the custom field name with `get_queue_fields` — what it
+must not do is present a plausible username or field name it had no way to look up.
+
+**Prompt:** `What custom fields does the [queue name] queue have?`
+
+**Expected:**
+- Every custom field applied to the queue is listed, with type and allowed values
+- All three groups are reported and distinguished: `CustomFields` (set on tickets),
+  `QueueCustomFields` (set on the queue itself, with `CurrentValues`), and
+  `TransactionCustomFields` (set on comments and replies)
+
+On an RTIR instance, ask the same question about the `Incidents` queue. `RTIR Constituency`
+and `RTIR default WHOIS server` must both appear under `QueueCustomFields` — they are applied
+to the queue object, not to tickets, and were previously reported as missing.
+
+---
+
+## 12. HTML and Plain Text Fields
+
+Needs a queue with at least one `HTML` custom field and one `Text` custom field.
+
+**Prompt:** `What custom fields does [queue] have, and which take HTML?`
+
+**Expected:** The AI reports each field's `ContentFormat` — `html`, `plain-text-multiline`,
+`plain-text`, `wikitext`, `file`, `date` or `datetime` — rather than only RT's type names.
+
+**Prompt:** `Set the description on ticket [ID] to a two-paragraph summary of the problem`
+
+**Expected:** The description renders in RT as separate paragraphs, not one run-on block.
+The AI may send HTML itself, or send plain text with blank lines and let the server convert
+it. Check the rendered ticket, not just the stored value.
+
+**Prompt:** `Put a two-line note in the [HTML custom field] on ticket [ID]`
+
+**Expected:** Line breaks appear in RT. An `html` field needs `<br />` or `<p>`; if the AI
+sends bare newlines the value renders as one line — that is the failure this section is
+looking for, and the AI should have used the `ContentFormat` hint to avoid it.
+
+**Prompt:** `Put "profit margin > 50% & rising" in the [HTML custom field] on ticket [ID]`
+
+**Expected:** The text displays exactly as written. RT escapes a bare `>` and `&` itself, so
+the AI should not pre-escape them and the value must not show as `&gt;` or `&amp;` on screen.
+
+Angle brackets that look like a tag are the exception: RT deletes any tag it does not allow
+along with the text inside it, so those have to be escaped before they reach RT.
+
+**Prompt:** `Note in the [HTML custom field] on ticket [ID] that the contact is <ops@example.com>`
+
+**Expected:** The address is visible in RT. The failure this is looking for is a value that
+renders as "the contact is" with the address gone — RT parsed `<ops@example.com>` as a tag
+and dropped it. The AI should have sent `&lt;ops@example.com&gt;`.
+
+**Prompt:** `Set the description on ticket [ID] to two lines: "Disk usage < 10% free" and
+"Please investigate today"`
+
+**Expected:** Both lines are visible and on separate lines. Two failures to watch for: the
+`<` swallowing the rest of the line, and the line break rendering as nothing because the
+value skipped paragraph conversion. A bare `<` in prose is not markup.
+
+---
+
+## 13. Ticket Links
+
+Start with a ticket that already has at least one `RefersTo` link.
+
+**Prompt:** `Make ticket [A] refer to ticket [B] as well`
+
+**Expected:** `update_ticket` with `AddRefersTo`. The existing link is still there
+afterwards — adding a link must never remove one.
+
+**Prompt:** `Make ticket [A] refer to tickets [B] and [C]`
+
+**Expected:** A single `AddRefersTo` carrying an array, not one call per ticket.
+
+**Prompt:** `Ticket [A] should no longer refer to ticket [B]`
+
+**Expected:** `update_ticket` with `DeleteRefersTo`.
+
+**Prompt:** `Replace ticket [A]'s references so it only refers to ticket [C]`
+
+**Expected:** A `get_ticket` to read the links that are there, then a delete of those
+followed by an add — or the AI asking which links to remove. It must name the links it
+deletes rather than guessing at them. `update_ticket` does not accept a bare `RefersTo`;
+if the AI tries one it gets an error naming `AddRefersTo`/`DeleteRefersTo` and **no links
+change**. Verify in RT that nothing was unlinked by the rejected attempt.
+
+Now give the ticket a child, and check the relation whose name changes between reading and
+writing: a child link is reported in `get_ticket` under `ref` `child`, but it is removed
+with `DeleteChild`.
+
+**Prompt:** `What is ticket [A] linked to?`
+
+**Expected:** The child is listed. The AI reads links from the `_hyperlinks` of the
+`get_ticket` response — there is no separate links tool, so an answer of "no links" means
+it did not look there.
+
+**Prompt:** `Ticket [A] should no longer have that child`
+
+**Expected:** `DeleteChild` with the child's ticket ID. Not `DeleteMemberOf`, not a bare
+`Child`, and not a delete aimed at the parent instead.
+
+Repeat one of these with `DependsOn` to confirm the other relations behave the same way.
+
+---
+
+## 14. Queue Custom Fields Under Restricted Rights
+
+This covers the failure mode where a queue appeared to have no custom fields at all.
+It needs a second RT user whose `SeeCustomField` right is granted **on the queue**
+rather than globally, plus an auth token for that user:
+
+- Grant that user `SeeQueue`, `ShowTicket`, and `SeeCustomField` on one queue only
+- Do not grant `SeeCustomField` globally, and do not make the user a SuperUser
+- Point a second MCP server entry at that user's token
+
+**Prompt:** `What custom fields does the [queue name] queue have?`
+
+**Expected:**
+- Every custom field applied to the queue is still listed by name — the count must match
+  what RT shows under Admin > Queues > Custom Fields
+- Fields whose details cannot be read carry a `DetailsUnavailable` message
+- The AI reports those fields as present but unreadable, **not** as missing, and does not
+  claim the queue has no custom fields
+
+## 15. Queue Administration
+
+These exercise the administration tools directly, rather than through the create-queue
+prompt. Use a disposable queue name — RT cannot delete a queue, only disable it.
+
+**Prompt:** `What lifecycles are available?`
+
+**Expected:** `list_lifecycles` returns each lifecycle with its statuses, not just names.
+
+**Prompt:** `Create a lifecycle called [name] based on default`
+
+**Expected:** `create_lifecycle` with `clone`. Cloning carries the whole configuration
+across — statuses, transitions, actions, colours and the per-status descriptions — which
+matters because a later `update_lifecycle` drops every key the AI leaves out.
+
+**Prompt:** `Show me the [name] lifecycle and which queues use it`
+
+**Expected:** `get_lifecycle` returns the stored configuration plus `used_by`, naming the
+queues on that lifecycle. Two defaults RT applies at load time are not in the response:
+a missing `defaults.on_create` falls back to the first initial status, and a transition
+with no entry in `rights` needs ModifyTicket (DeleteTicket for a move to deleted). Their
+absence here is normal, not damage to repair.
+
+**Prompt:** `Create a queue called [name] using the default lifecycle`
+
+**Expected:** `create_queue` called; the queue exists in RT under Admin > Queues.
+
+**Prompt:** `Change [queue]'s description to "[text]" and set its correspond address to [address]`
+
+**Expected:** `update_queue` returns one message per field it attempted. It applies each
+field independently and reports success overall even when one of them failed, so the AI
+has to read every message rather than trust that the call returned.
+
+**Prompt:** `Create a group called [name] and add me to it`
+
+**Expected:** `create_group`, then `add_group_members` with your numeric user ID —
+resolved via `get_current_user` or `lookup_user`, since the member argument takes IDs.
+
+**Prompt:** `Who is in [group name]?`
+
+**Expected:** `get_group`, not `list_group_members`. The members collection returns only
+an id and a type, and ignores a `fields` parameter; `get_group` returns the same
+membership already resolved — a user member carries its username as its id, a group
+member its numeric id. An AI that reaches for the collection gets bare numbers, and must
+describe them as ids rather than inventing names.
+
+**Prompt:** `Remove [user] from [group]`
+
+**Expected:** `remove_group_member` returns nothing at all — RT answers a successful
+delete with 204 and no body. Absence of a message is success here, not a silent failure.
+Confirm with `get_group`.
+
+**Prompt:** `What groups exist?`
+
+**Expected:** `list_groups` returns names and descriptions, not bare IDs.
+
+**Prompt:** `Add a select custom field called [name] with values Red and Green to [queue]`
+
+**Expected:** `create_custom_field`, then `add_custom_field_value` per value, then
+`apply_custom_field` to the queue. Confirm in RT that the field appears on that queue
+and offers both values.
+
+**Prompt:** `What custom fields already exist matching "[term]"?`
+
+**Expected:** `search_custom_fields` returns names, types, and lookup types — not bare IDs.
+
+Note the `Type` filter matches RT's stored base type — `Select`, `Freeform`, `Text` — not
+the composite name `create_custom_field` takes. Asking for `SelectSingle` returns an empty
+list with no error, which reads as "no such fields exist".
+
+**Prompt:** `What is [custom field] applied to?`
+
+**Expected:** `list_custom_field_applications` names each object the field is applied to,
+rather than returning bare object ids.
+
+**Prompt:** `Stop using [custom field] on [queue]`
+
+**Expected:** `remove_custom_field_application` returns nothing — 204 again. The custom
+field itself survives; only its application to that queue is removed. Confirm with
+`list_custom_field_applications` and with `get_queue_fields` on the queue.
+
+**Prompt:** `What rights can I grant on [queue]?`
+
+**Expected:** `get_available_rights` groups rights by category, and which categories come
+back depends on the object: General, Staff and Admin on a queue, only Admin and Staff on a
+group. A queue whose lifecycle reserves a transition behind a named right also carries a
+`Status` category holding that right. The AI should read the categories from the response
+rather than assume a fixed set.
+
+**Prompt:** `Let Everyone create tickets in [queue] and let [group] own them`
+
+**Expected:** `grant_rights` for each principal. Verify under Admin > Queues > Group
+Rights. A right granted globally versus on the queue goes to a different path, so check
+it landed on the queue rather than system-wide.
+
+**Prompt:** `Who has rights on [queue]?`
+
+**Expected:** `list_rights` returns each right with its principal.
+
+**Prompt:** `Take CreateTicket away from [group] on [queue]`
+
+**Expected:** `revoke_right` returns nothing — another 204. Verify with `list_rights`: the
+grant count drops by one and every other grant is untouched. Revoking a right that was
+never granted is an error rather than a silent pass — RT answers 404 on a queue, because
+`resource_exists` looks for the ACE first, and 500 globally, where that check is skipped
+and `RevokeRight` fails instead. Either way the AI sees a failure, not success.
+
+Watch which form the AI passes for the group. `revoke_right` puts the principal in the
+URL path, where RT resolves a username but not a group name, so a group has to be given
+as its numeric ID even though `grant_rights` accepted the name a moment earlier. A group
+name answers the same 404 as a right that was never granted, so an AI that passes one may
+report the right as already absent. `list_rights` has the same split, and there a group
+name is worse: it matches nothing and returns an empty list rather than an error.
+
+**Prompt:** `Set [group] as AdminCc on [queue]`
+
+**Expected:** `manage_queue_watchers`. A group has to be passed as `group:Group Name`;
+if the AI passes a bare name RT looks it up as a user and the call reports failure
+**while still returning success overall** — the AI must read the messages and say so.
+
+**Prompt:** `Check whether this lifecycle change is valid before applying it: [change]`
+
+**Expected:** `validate_lifecycle` first, then `update_lifecycle` only if valid. Note
+`update_lifecycle` replaces the whole configuration — any key omitted is dropped.
+
+**Prompt:** `Map [lifecycle]'s statuses onto default`
+
+**Expected:** `update_lifecycle_maps`, and RT echoes the map back. Check it under
+Admin > Lifecycles; the maps are stored separately from the lifecycle itself, so an
+`update_lifecycle` that drops other keys leaves these intact.
+
+**Prompt:** `Delete the lifecycle [name I just created]`
+
+**Expected:** `delete_lifecycle` succeeds and reports success. RT answers a successful
+delete with 204 and no body, so a client that insists on parsing one would error here
+even though the delete worked.
+
+---
+
+## Automated Prompt Testing with Dual Agents
+
+This section describes how to test MCP prompts (like `/mcp__rt__create-queue`) end-to-end using two Claude Code sub-agents: one playing the AI consultant role and one playing the end user. The orchestrating session relays messages between them.
+
+### Overview
+
+The test exercises the full prompt workflow — discovery conversation, plan presentation, user approval, and execution against a live RT instance — without a human in the loop. After execution, you verify the created objects in RT and then clean them up.
+
+### Prerequisites
+
+- RT dev instance running and accessible
+- `rt` MCP server built (`npm run build`) and configured in `~/.claude.json`
+- Claude Code session with access to MCP tools
+- The `rt-shredder` command available for cleanup (`sbin/rt-shredder` in the RT checkout)
+
+### Architecture
+
+```
+┌──────────────────┐     relay      ┌──────────────────┐
+│   AI Consultant  │ <──messages──> │   End User Agent  │
+│   (Agent #1)     │                │   (Agent #2)      │
+│                  │                │                    │
+│  Has: create-    │                │  Has: persona      │
+│  queue prompt    │                │  prompt with       │
+│  instructions,   │                │  scenario details, │
+│  MCP tool access │                │  behavioral rules  │
+└──────────────────┘                └──────────────────┘
+         │                                    │
+         │  Orchestrated by the main Claude Code session
+         │  which relays responses between agents
+         └────────────────────────────────────┘
+```
+
+The main session:
+1. Launches the AI consultant agent with the create-queue prompt instructions
+2. Launches the end user agent with a persona prompt
+3. Takes the consultant's output, sends it to the end user agent
+4. Takes the end user's response, sends it back to the consultant
+5. Repeats until the consultant has enough info to present a plan
+6. After user approval, launches the consultant with execution instructions and MCP tool access
+7. Verifies the results in RT
+8. Cleans up with `rt-shredder`
+
+### Step 1: Create the AI Consultant Agent
+
+Launch with the Agent tool. The prompt should include:
+
+- The consultant role (workflow consultant, opinionated, leads with questions)
+- Key behavioral rules from the create-queue prompt (one question at a time, discover before recommending)
+- Execution guidelines (bulk CF values, group names for rights, group nesting, ask about watchers, ask about group members)
+- The numbered execution steps (check lifecycles, create queue, groups, rights, CFs, watchers, summarize)
+- Instruction to start with ONE open-ended question
+
+Example opening:
+
+```
+Now start. Send your opening question to the admin. Keep it to ONE open-ended question.
+```
+
+### Step 2: Create the End User Agent
+
+Launch with the Agent tool. The prompt should include:
+
+- A character description (role, organization, years of experience, technical level)
+- The department's reality as a set of facts to reveal naturally (work types, team structure, how work arrives, pain points, preferences)
+- Behavioral rules:
+  - Answer naturally, 3-5 sentences per turn
+  - Don't dump everything at once — answer what's asked, add one related detail
+  - Improvise consistent details (names, examples)
+  - Push back if something doesn't fit the character
+  - Approve plans with minor feedback when appropriate
+
+**Important framing note:** If the end user agent refuses to role-play, reframe the task as "generating realistic test input to exercise the queue creation system." This is a software testing task, not creative fiction.
+
+### Step 3: Run the Discovery Conversation
+
+Relay messages between agents for 4-6 turns. A typical conversation:
+
+| Turn | Consultant asks about | User reveals |
+|------|----------------------|--------------|
+| 1 | What work does the queue manage? | Big picture: work types, basic flow |
+| 2 | How is work assigned? Where does it get stuck? | Team structure, pain points |
+| 3 | Who submits? How does work arrive? | Requesters, channels (email/portal/phone) |
+| 4 | Who needs notifications? | Watchers, email preferences |
+| 5 | (Presents plan) | Reviews and approves with adjustments |
+
+The consultant should naturally discover enough to form a recommendation. If it asks too many questions without converging, the prompt may need tuning.
+
+### Step 4: Execute the Plan
+
+After user approval, launch the consultant agent with:
+
+- The full approved plan (revised per user feedback)
+- Explicit execution instructions with object details (lifecycle statuses, CF values, group names, rights per principal)
+- Reminder of technical guidelines (bulk Values array, group names for rights, actions format)
+- Instruction to report a summary when done
+
+This agent needs MCP tool access (default for general-purpose agents).
+
+### Step 5: Verify Results
+
+After execution, verify in the main session:
+
+```
+# Check rights were granted correctly (system groups, roles, user-defined groups)
+mcp__rt__list_rights on the new queue with per_page=100
+
+# Check lifecycle was created with correct statuses
+mcp__rt__get_lifecycle for the new lifecycle name
+
+# Check custom fields have correct values
+# (visible in the execution agent's summary)
+```
+
+Key things to verify:
+- **System groups by name**: Everyone, Privileged, Unprivileged appear with correct IDs
+- **Role groups by name**: Requestor, Owner, Cc, AdminCc resolved correctly
+- **Bulk CF values**: All values created in one tool call (not one per value)
+- **Group nesting**: Supervisor/manager group nested inside staff group
+- **Staff CreateTicket**: Staff group has CreateTicket right
+- **Watchers set**: AdminCc and Cc configured on the queue
+- **No DeleteTicket**: For compliance scenarios, verify no principal has DeleteTicket
+
+### Step 6: Clean Up
+
+Remove all created objects using `rt-shredder` and the REST API:
+
+```bash
+# Queue (cascades to tickets created in it)
+perl -Ilib sbin/rt-shredder --force --plugin 'Objects=Queue,<ID>'
+
+# Groups
+perl -Ilib sbin/rt-shredder --force --plugin 'Objects=Group,<ID>'
+
+# Custom Fields
+perl -Ilib sbin/rt-shredder --force --plugin 'Objects=CustomField,<ID>'
+
+# Lifecycle (stored in DB config, not a shredder object)
+curl -s -X DELETE -H "Authorization: token <TOKEN>" \
+     http://<RT_URL>/REST/2.0/lifecycle/<name>
+```
+
+The shredder walks dependencies, so removing the queue will also remove any tickets created in it. Groups must be removed separately. SQL dump files are created automatically for each shredder operation in case you need to restore.
+
+### Test Scenarios
+
+Two scenarios have been validated. Use these or create new ones.
+
+#### Scenario A: Facilities Department (Request/Fulfillment)
+
+**Persona:** Director of Facilities Management at a mid-sized university.
+
+**Key characteristics:**
+- Handles repairs, cleaning, restocking, landscaping, general maintenance
+- Anyone on campus submits via email, web form, or phone
+- Front desk staff create tickets for phone calls
+- Operations manager triages, sets priority, routes to crews
+- Wants "waiting" status instead of "stalled" with a reason (parts, weather, vendor)
+- Categorize by department (Plumbing, Electrical, Custodial, etc.)
+- Separate manager group with reassignment rights
+
+**Expected outcome:**
+- Custom "facilities" lifecycle (new, open, waiting, resolved, rejected, deleted)
+- One queue with Department and Waiting Reason custom fields
+- Two groups (Staff, Managers) with managers nested in staff
+- ~20 rights grants, all 201 status
+
+#### Scenario B: Building Permit Office (Pipeline/Compliance)
+
+**Persona:** Director of Building and Permitting Services for a county government.
+
+**Key characteristics:**
+- Sequential pipeline: submitted → intake review → plan review → inspections → finalized
+- Revision loops (plan review ↔ revisions requested) and inspection loops (inspection ↔ corrections required)
+- Permits can be denied or withdrawn
+- Distinct roles: intake clerks, plan reviewers, field inspectors, supervisors
+- Annual state audits — NO deletions allowed, full history required
+- Read-only auditor group
+- Categorize by permit type (Residential/Commercial × New/Renovation, Demolition)
+- Inspection stage tracking (Foundation, Framing, Electrical, Plumbing, Final)
+
+**Expected outcome:**
+- Custom "building-permits" lifecycle with 9+ statuses
+- One queue (user may push back on multi-queue recommendation)
+- Four groups (Intake, Staff, Supervisors nested in Staff, Auditors read-only)
+- No DeleteTicket granted to any principal
+- ~30+ rights grants
+
+#### Creating New Scenarios
+
+Good test scenarios should exercise different workflow patterns from the prompt:
+
+- **Approval-Gated**: Work requiring sign-off before proceeding (grant proposals, budget requests)
+- **Triage/Routing**: Central intake with sorting and routing (service desk, bug intake)
+- **Internal Tracking**: Team tracks own work, no external requester (project tasks, sprint backlogs)
+
+For each scenario, write a persona prompt that includes:
+- Character background (role, experience, technical level)
+- Department facts (work types, team size, how work arrives)
+- Specific preferences that test prompt features (custom statuses, compliance needs, notification requirements)
+- At least one point where the user should push back on the AI's recommendation
+
+### What to Watch For
+
+**Signs the prompt is working well:**
+- Consultant asks one question at a time, not a checklist
+- Discovery converges in 4-6 turns
+- Plan is opinionated (recommends, doesn't list options)
+- Group nesting suggested when there's a superset relationship
+- Watchers and notifications discussed during discovery
+- Staff get CreateTicket rights
+- Bulk CF values used (one tool call, not N calls)
+- System groups and roles resolved by name without errors
+
+**Signs something needs tuning:**
+- Consultant asks too many questions per turn
+- Discovery drags past 6-7 turns without converging
+- Plan presents options instead of making recommendations
+- Rights granted to system groups fail with "Group not found"
+- CF values added one at a time
+- DeleteTicket granted when compliance was discussed
+- Watchers never mentioned during discovery
+- Group members not asked about
