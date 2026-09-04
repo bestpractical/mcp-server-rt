@@ -215,24 +215,34 @@ const HTML_TAG = new RegExp(`<\\/?(?:${HTML_TAGS.join('|')})(?:\\s[^>]*)?\\/?>`,
 // Escape the angle brackets so RT keeps them; leave "&" alone, because RT
 // escapes a bare one itself and does not double-escape an entity, so a
 // deliberate "&amp;" survives.
+function escapeAngleBrackets(value: string): string {
+  return value.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function htmlFromPlainText(value: string): string {
-  return value
-    .trim()
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return escapeAngleBrackets(value.trim())
     .split(/\n\s*\n+/)
     .map((para) => `<p>${para.split('\n').join('<br />')}</p>`)
     .join('');
 }
 
-// Convert a value that is unambiguously plain text — it has line breaks, some
-// content, and no tag RT would render — and leave anything else as supplied.
+// Convert a value that is unambiguously plain text — it has some content and no
+// tag RT would render — and leave anything else as supplied. Only the paragraph
+// wrapping needs line breaks. Escaping is what stops RT deleting text shaped
+// like a tag it does not allow, and one line of prose needs that as much as
+// several do: "contact <bob@example.com> thanks" rendered as "contact  thanks"
+// while the same text with a newline survived.
 function formatDescription(fields: Record<string, unknown>): Record<string, unknown> {
   const description = fields.Description;
   if (typeof description !== 'string') return fields;
-  if (!description.includes('\n') || !description.trim()) return fields;
+  if (!description.trim()) return fields;
   if (HTML_TAG.test(description)) return fields;
-  return { ...fields, Description: htmlFromPlainText(description) };
+  return {
+    ...fields,
+    Description: description.includes('\n')
+      ? htmlFromPlainText(description)
+      : escapeAngleBrackets(description),
+  };
 }
 
 // A Priority that RT has to look up in the queue's PriorityAsString mapping

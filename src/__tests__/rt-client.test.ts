@@ -236,12 +236,43 @@ describe('RTClient', () => {
         );
       });
 
-      it('leaves single-line text untouched', async () => {
+      it('leaves single-line text with nothing to escape untouched', async () => {
         mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
         await client.createTicket({ Queue: 'General', Subject: 'Test', Description: 'One line' });
 
         const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(JSON.parse(options.body as string).Description).toBe('One line');
+      });
+
+      // Only the paragraph wrapping needs line breaks. Gating the escaping on
+      // them too meant RT's scrubber deleted the address from one line of
+      // prose, while the same text with a newline survived.
+      it('escapes single-line text without wrapping it in a paragraph', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: 'contact <bob@example.com> thanks',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          'contact &lt;bob@example.com&gt; thanks',
+        );
+      });
+
+      it('leaves single-line markup untouched', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse({ id: 1 }));
+        await client.createTicket({
+          Queue: 'General',
+          Subject: 'Test',
+          Description: '<p>Contact <bob@example.com></p>',
+        });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe(
+          '<p>Contact <bob@example.com></p>',
+        );
       });
 
       // A comparison is not markup. Treating any "<" as markup skipped
@@ -308,6 +339,14 @@ describe('RTClient', () => {
 
         const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(JSON.parse(options.body as string).Description).toBe('<p>One<br />Two</p>');
+      });
+
+      it('escapes single-line text on update too', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse(['Description changed']));
+        await client.updateTicket(7, { Description: 'ping <ops@example.com>' });
+
+        const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(options.body as string).Description).toBe('ping &lt;ops@example.com&gt;');
       });
     });
 

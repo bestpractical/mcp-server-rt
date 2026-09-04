@@ -32,7 +32,8 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'Omit empty or unset fields rather than showing blank values.\n\n' +
     'CONTENT FORMATTING: The ticket Description field is HTML. A plain newline produces no line ' +
     'break there, so use <p> for paragraphs and <br /> for single breaks. If you do pass plain text ' +
-    'with line breaks and no markup at all, the server converts it to paragraphs for you.\n' +
+    'with no markup at all, the server escapes its angle brackets for you, and turns its line ' +
+    'breaks into paragraphs.\n' +
     'Custom field values depend on the field, and get_queue_fields reports a ContentFormat for each ' +
     'one. "html" means send HTML, because newlines alone will not render. "plain-text-multiline" ' +
     'means send plain text and RT turns the newlines into line breaks. "plain-text" means the value ' +
@@ -46,8 +47,9 @@ export function buildInstructions({ rtUrl, timezone }: InstructionContext): stri
     'angle brackets that parse as a tag it does not allow: it deletes that tag and the text inside ' +
     'it, silently, and the response still reports success. So write angle brackets that are not ' +
     'markup as &lt; and &gt; yourself — an address like &lt;bob@example.com&gt; or a placeholder ' +
-    'like &lt;PID&gt; is lost otherwise, in the Description and in any custom field whose ' +
-    'ContentFormat is "html", "plain-text-multiline" or "wikitext".\n\n' +
+    'like &lt;PID&gt; is lost otherwise. That is done for you only in a Description you send as ' +
+    'plain text; it is yours to do in a Description that contains markup, and in any custom field ' +
+    'whose ContentFormat is "html", "plain-text-multiline" or "wikitext".\n\n' +
     'PRIORITY: RT stores priority as a number, and an installation can map labels like Low, ' +
     'Medium, High onto numbers, per queue. create_ticket and update_ticket take either form. ' +
     'RT resolves a label itself, and it does not reject one that is not in the queue\'s mapping, ' +

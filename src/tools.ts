@@ -238,7 +238,7 @@ export const TOOLS: Tool[] = [
           enum: ['text/plain', 'text/html'],
           description: 'Content MIME type (default text/plain)',
         },
-        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
+        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with no markup is sent with its angle brackets escaped for you, and gains paragraphs if it has line breaks. If you send markup, write any angle bracket that is not part of it as &lt; and &gt; yourself — RT silently deletes any tag it does not allow along with the text inside it, so an address left as <bob@example.com> inside HTML is lost. A bare & is safe as typed.' },
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
         Status: { type: 'string', description: 'Initial status' },
         Priority: {
@@ -289,7 +289,7 @@ export const TOOLS: Tool[] = [
         id: { type: 'integer', description: 'Ticket ID' },
         Subject: { type: 'string', description: 'New subject' },
         Type: { type: 'string', description: 'Ticket type (e.g. "ticket", "reminder")' },
-        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with line breaks and no markup is converted to paragraphs for you. Write angle brackets that are not markup as &lt; and &gt; — RT silently deletes any tag it does not allow along with the text inside it, so &lt;bob@example.com&gt; sent as <bob@example.com> is lost. A bare & is safe as typed.' },
+        Description: { type: 'string', description: 'Ticket description. This field is HTML: use <p> for paragraphs and <br /> for single line breaks, because a bare newline renders as nothing. Plain text with no markup is sent with its angle brackets escaped for you, and gains paragraphs if it has line breaks. If you send markup, write any angle bracket that is not part of it as &lt; and &gt; yourself — RT silently deletes any tag it does not allow along with the text inside it, so an address left as <bob@example.com> inside HTML is lost. A bare & is safe as typed.' },
         Status: { type: 'string', description: 'New status (e.g. open, resolved, rejected)' },
         Priority: {
           type: ['integer', 'string'],
