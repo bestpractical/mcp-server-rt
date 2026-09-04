@@ -1007,7 +1007,42 @@ export const TOOLS: Tool[] = [
 
 export type Args = Record<string, unknown>;
 
+function given(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+// The MCP handler hands tool arguments straight to callTool, so nothing checks
+// them against the schema that declared them. A required parameter the caller
+// omitted reached RT as an absent body field or an empty path segment and came
+// back opaque — add_group_members without members answered 500. Enforce what
+// the schemas already say, and name the parameter, the way rightsObjectPath
+// does for the object_id its own schema cannot mark required.
+const REQUIRED_ARGS = new Map<string, string[]>(
+  TOOLS.map((t) => [t.name, (t.inputSchema.required ?? []) as string[]]),
+);
+
+function checkRequiredArgs(name: string, args: Args): void {
+  const missing = (REQUIRED_ARGS.get(name) ?? []).filter((key) => !given(args[key]));
+  if (missing.length > 0) {
+    throw new Error(`${name} requires ${missing.join(' and ')}`);
+  }
+}
+
+// The one principal a rights call names. An empty value is reported as empty
+// rather than missing: testing truthiness alone told a caller who passed
+// User: "" that they had omitted it.
+function rightsPrincipal(tool: string, args: Args): { type: string; id: string } {
+  for (const key of ['User', 'Group'] as const) {
+    const value = args[key];
+    if (!given(value)) continue;
+    if (value === '') throw new Error(`${tool} was given an empty ${key}`);
+    return { type: key.toLowerCase(), id: value as string };
+  }
+  throw new Error(`${tool} requires either User or Group`);
+}
+
 export async function callTool(rt: RTClient, name: string, args: Args): Promise<unknown> {
+  checkRequiredArgs(name, args);
   switch (name) {
     case 'search_tickets':
       return rt.searchTickets(args.query as string, {
@@ -1183,18 +1218,19 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       if (grants) {
         return rt.bulkRights(object_type as string, object_id as string | undefined, { grant: grants });
       }
+      // The schema cannot mark Right required, since a grants array carries its
+      // own, so the single-grant form is checked here. RT's own message for a
+      // missing principal is clear, but an empty one is not, so both go through
+      // rightsPrincipal.
+      if (!given(single.Right)) throw new Error('grant_rights requires Right, or an array of grants');
+      rightsPrincipal('grant_rights', single);
       return rt.grantRight(object_type as string, object_id as string | undefined, single);
     }
 
     case 'revoke_right': {
-      const { object_type, object_id, Right, User, Group } = args;
-      if (User) {
-        return rt.revokeRight(object_type as string, object_id as string | undefined, Right as string, 'user', User as string);
-      }
-      if (Group) {
-        return rt.revokeRight(object_type as string, object_id as string | undefined, Right as string, 'group', Group as string);
-      }
-      throw new Error('revoke_right requires either User or Group');
+      const { object_type, object_id, Right } = args;
+      const principal = rightsPrincipal('revoke_right', args);
+      return rt.revokeRight(object_type as string, object_id as string | undefined, Right as string, principal.type, principal.id);
     }
 
     case 'search_custom_fields': {

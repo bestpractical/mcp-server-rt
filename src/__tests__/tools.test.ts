@@ -33,6 +33,18 @@ function requestBody(callIndex = 0): Record<string, unknown> {
   return JSON.parse(options.body as string);
 }
 
+// A plausible value for every parameter a tool declares required, so a test
+// about something else is not tripped up by callTool's required-argument check.
+function requiredArgs(t: Tool): Record<string, unknown> {
+  const properties = (t.inputSchema.properties ?? {}) as Record<string, { type?: string }>;
+  const values: Record<string, unknown> = {};
+  for (const key of (t.inputSchema.required ?? []) as string[]) {
+    const type = properties[key]?.type;
+    values[key] = type === 'integer' ? 1 : type === 'array' ? [1] : type === 'object' ? {} : 'x';
+  }
+  return values;
+}
+
 function requestParams(callIndex = 0): URLSearchParams {
   const [url] = mockFetch.mock.calls[callIndex] as [string];
   return new URL(url).searchParams;
@@ -336,11 +348,13 @@ describe('tool layer', () => {
     it('every declared tool is reachable through callTool', async () => {
       // "Unknown tool" is raised before RT is touched, so it is the one failure
       // that proves a schema has no matching case. Any other error is fine here.
+      // Every declared parameter is supplied, since callTool now refuses a call
+      // missing one and would never reach the case being tested.
       mockFetch.mockReturnValue(mockResponse({}));
       const unreachable: string[] = [];
       for (const t of TOOLS) {
         try {
-          await callTool(rt, t.name, { id: 1, query: 'x', path: '/tmp/x', name: 'x' });
+          await callTool(rt, t.name, { ...requiredArgs(t), id: 1, path: '/tmp/x' });
         } catch (err) {
           if (/Unknown tool/.test(String(err))) unreachable.push(t.name);
         }
@@ -400,6 +414,67 @@ describe('tool layer', () => {
       const [url] = mockFetch.mock.calls[0] as [string];
       expect(url).toContain('/REST/2.0/queue/8/rights/bulk');
       expect(requestBody()).toEqual({ grant: [{ Right: 'CreateTicket', Group: 'Everyone' }] });
+    });
+
+    // Nothing validated tool arguments against the schemas that declared them,
+    // so an omitted parameter reached RT and came back as its own error, or as
+    // no information at all.
+    describe('required arguments', () => {
+      it('refuses a call missing a declared parameter without touching RT', async () => {
+        await expect(callTool(rt, 'add_group_members', { id: '1248' })).rejects.toThrow(
+          'add_group_members requires members',
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      it('names every missing parameter, not just the first', async () => {
+        await expect(callTool(rt, 'apply_custom_field', {})).rejects.toThrow(
+          'apply_custom_field requires id and ObjectId',
+        );
+      });
+
+      // Right cannot be marked required on grant_rights, because a grants array
+      // carries its own, so the single-grant form is checked in the dispatch.
+      it('refuses a single grant with no Right', async () => {
+        await expect(
+          callTool(rt, 'grant_rights', { object_type: 'queue', object_id: '8', Group: '1248' }),
+        ).rejects.toThrow('grant_rights requires Right, or an array of grants');
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      it('refuses a single grant with no principal', async () => {
+        await expect(
+          callTool(rt, 'grant_rights', { object_type: 'queue', object_id: '8', Right: 'OwnTicket' }),
+        ).rejects.toThrow('grant_rights requires either User or Group');
+      });
+
+      // Testing truthiness alone reported an empty principal as an omitted one,
+      // telling the caller to pass a parameter they had passed.
+      it('reports an empty principal as empty rather than missing', async () => {
+        await expect(
+          callTool(rt, 'revoke_right', { object_type: 'queue', object_id: '8', Right: 'ShowTicket', User: '' }),
+        ).rejects.toThrow('revoke_right was given an empty User');
+      });
+
+      it('still reports an absent principal as missing', async () => {
+        await expect(
+          callTool(rt, 'revoke_right', { object_type: 'queue', object_id: '8', Right: 'ShowTicket' }),
+        ).rejects.toThrow('revoke_right requires either User or Group');
+      });
+
+      it('revokes from the principal it was given', async () => {
+        mockFetch.mockReturnValueOnce(mockResponse(null, 204));
+        await callTool(rt, 'revoke_right', {
+          object_type: 'queue',
+          object_id: '8',
+          Right: 'OwnTicket',
+          Group: '1248',
+        });
+
+        const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('/REST/2.0/queue/8/rights/OwnTicket/group/1248');
+        expect(options.method).toBe('DELETE');
+      });
     });
 
     // Each of these descriptions once said something a live RT contradicted.
