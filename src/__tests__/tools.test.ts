@@ -382,6 +382,42 @@ describe('tool layer', () => {
       expect(requestBody()).toEqual([11, 12]);
     });
 
+    // Every other lifecycle tool keys on a lowercase name, so an AI that had
+    // just used create_lifecycle's Name carried it over and asked RT for
+    // "lifecycle/undefined". The tools now speak lowercase throughout and the
+    // client puts back the capitals RT's create body needs — and RT needs
+    // them: it ignores a body key it does not know and still reports success,
+    // so a lowercase clone would silently produce a bare lifecycle.
+    it('creates a lifecycle from lowercase parameters', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ name: 'helpdesk' }));
+      await callTool(rt, 'create_lifecycle', { name: 'helpdesk', clone: 'default', type: 'ticket' });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/REST/2.0/lifecycles');
+      expect(options.method).toBe('POST');
+      expect(requestBody()).toEqual({ Name: 'helpdesk', Type: 'ticket', Clone: 'default' });
+    });
+
+    it('sends only the lifecycle fields it was given', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ name: 'helpdesk' }));
+      await callTool(rt, 'create_lifecycle', { name: 'helpdesk' });
+
+      expect(requestBody()).toEqual({ Name: 'helpdesk' });
+    });
+
+    it('takes the same lowercase name across the lifecycle family', async () => {
+      mockFetch.mockReturnValue(mockResponse({}));
+      await callTool(rt, 'get_lifecycle', { name: 'helpdesk' });
+      await callTool(rt, 'delete_lifecycle', { name: 'helpdesk' });
+
+      for (const [url] of mockFetch.mock.calls as [string][]) {
+        expect(url).toContain('/REST/2.0/lifecycle/helpdesk');
+      }
+      expect(
+        (tool('create_lifecycle').inputSchema.required as string[]),
+      ).toEqual(['name']);
+    });
+
     it('validates a lifecycle without saving it', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ valid: true }));
       await callTool(rt, 'validate_lifecycle', { name: 'helpdesk', initial: ['new'] });

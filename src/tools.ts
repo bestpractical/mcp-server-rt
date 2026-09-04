@@ -614,11 +614,11 @@ export const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        Name:  { type: 'string', description: 'Lifecycle name (required, must be unique)' },
-        Type:  { type: 'string', enum: ['ticket', 'asset'], description: 'Lifecycle type (default: ticket)' },
-        Clone: { type: 'string', description: 'Name of an existing lifecycle to clone as a starting point' },
+        name:  { type: 'string', description: 'Lifecycle name (required, must be unique)' },
+        type:  { type: 'string', enum: ['ticket', 'asset'], description: 'Lifecycle type (default: ticket)' },
+        clone: { type: 'string', description: 'Name of an existing lifecycle to clone as a starting point' },
       },
-      required: ['Name'],
+      required: ['name'],
     },
   },
   {
@@ -627,7 +627,7 @@ export const TOOLS: Tool[] = [
       'Update a lifecycle\'s configuration. Pass the full lifecycle definition including ' +
       'initial, active, inactive status arrays, transitions, rights, actions, and defaults. ' +
       'This REPLACES the stored configuration — any key you omit is dropped, including keys ' +
-      'inherited from a create_lifecycle Clone. RT fills in a missing defaults.on_create from ' +
+      'inherited from a create_lifecycle clone. RT fills in a missing defaults.on_create from ' +
       'the first initial status, and falls back to ModifyTicket — DeleteTicket for deleted — ' +
       'where rights are missing, but it does that in memory as it loads the config: neither ' +
       'key reappears in get_lifecycle, so one absent there is a working default rather than ' +
@@ -1184,7 +1184,10 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
       return rt.getLifecycle(args.name as string);
 
     case 'create_lifecycle':
-      return rt.createLifecycle(args as Record<string, unknown>);
+      return rt.createLifecycle(args.name as string, {
+        type:  args.type as string | undefined,
+        clone: args.clone as string | undefined,
+      });
 
     case 'update_lifecycle': {
       const { name, ...config } = args;

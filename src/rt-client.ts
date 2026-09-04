@@ -686,8 +686,17 @@ export class RTClient {
     return this.request('GET', `lifecycle/${seg(name)}`);
   }
 
-  createLifecycle(data: Record<string, unknown>): Promise<unknown> {
-    return this.request('POST', 'lifecycles', data);
+  // Every other lifecycle route takes the name as a path segment and lowercase
+  // keys in the body; create alone takes capitalised body fields. RT silently
+  // ignores a body key it does not know and still reports success, so a
+  // lowercase "clone" produced a bare lifecycle rather than a copy and a
+  // lowercase "type" produced a ticket one. The tools all speak the lowercase
+  // names the rest of the family uses; the capitals stop here.
+  createLifecycle(name: string, opts: { type?: string; clone?: string } = {}): Promise<unknown> {
+    const body: Record<string, unknown> = { Name: name };
+    if (opts.type !== undefined) body.Type = opts.type;
+    if (opts.clone !== undefined) body.Clone = opts.clone;
+    return this.request('POST', 'lifecycles', body);
   }
 
   updateLifecycle(name: string, data: Record<string, unknown>): Promise<unknown> {

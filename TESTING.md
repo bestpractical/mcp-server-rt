@@ -388,7 +388,7 @@ prompt. Use a disposable queue name — RT cannot delete a queue, only disable i
 
 **Prompt:** `Create a lifecycle called [name] based on default`
 
-**Expected:** `create_lifecycle` with `Clone`. Cloning carries the whole configuration
+**Expected:** `create_lifecycle` with `clone`. Cloning carries the whole configuration
 across — statuses, transitions, actions, colours and the per-status descriptions — which
 matters because a later `update_lifecycle` drops every key the AI leaves out.
 
