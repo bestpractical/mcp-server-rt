@@ -690,13 +690,17 @@ export const TOOLS: Tool[] = [
       'update_lifecycle and reports whether RT would accept it, with a warning for each ' +
       'problem found (unknown statuses, malformed transitions or actions, and so on). ' +
       'Use this to dry-run a custom lifecycle before writing it, since update_lifecycle ' +
-      'rejects the whole payload if anything is wrong. The lifecycle does not have to exist ' +
-      'yet, so a definition can be checked before create_lifecycle.',
+      'rejects the whole payload if anything is wrong. RT checks only the payload sent: it ' +
+      'never reads the lifecycle the name refers to, which is why the name need not exist ' +
+      'yet and why it does nothing but label the warnings. So send a complete definition ' +
+      'rather than the part being changed — transitions on their own report every status ' +
+      'in them as nonexistent, including statuses the named lifecycle already has. Read the ' +
+      'current definition with get_lifecycle, change it, and validate the whole thing.',
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: 'object',
       properties: {
-        name:        { type: 'string', description: 'Lifecycle name to validate against; need not exist yet' },
+        name:        { type: 'string', description: 'Lifecycle name the warnings are labelled with; need not exist, and its stored definition is not consulted' },
         initial:     { type: 'array', items: { type: 'string' }, description: 'Initial statuses' },
         active:      { type: 'array', items: { type: 'string' }, description: 'Active statuses' },
         inactive:    { type: 'array', items: { type: 'string' }, description: 'Inactive statuses' },
@@ -1196,6 +1200,16 @@ export async function callTool(rt: RTClient, name: string, args: Args): Promise<
 
     case 'validate_lifecycle': {
       const { name, ...config } = args;
+      // RT validates the payload and nothing else, so an empty one has nothing
+      // wrong with it and comes back valid — a green light for a definition the
+      // tool never received. The schema cannot express "at least one of these".
+      if (Object.keys(config).length === 0) {
+        throw new Error(
+          'validate_lifecycle requires a definition to check — initial, active, inactive, ' +
+            'transitions, or any other update_lifecycle field. RT validates only the payload ' +
+            'it is sent, so an empty one is reported valid.',
+        );
+      }
       return rt.validateLifecycle(name as string, config);
     }
 

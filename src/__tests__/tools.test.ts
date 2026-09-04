@@ -418,6 +418,25 @@ describe('tool layer', () => {
       ).toEqual(['name']);
     });
 
+    // RT validates the payload and never looks at the lifecycle the name refers
+    // to — verified live: transitions naming "new" and "open" are reported as
+    // nonexistent statuses even against `default`, which has both. So an empty
+    // payload has nothing wrong with it and comes back valid, which is a green
+    // light for a definition the tool never received.
+    it('refuses to validate an empty definition', async () => {
+      await expect(callTool(rt, 'validate_lifecycle', { name: 'helpdesk' })).rejects.toThrow(
+        /requires a definition to check/,
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('validates a definition that carries only metadata', async () => {
+      mockFetch.mockReturnValueOnce(mockResponse({ valid: true, warnings: [] }));
+      await callTool(rt, 'validate_lifecycle', { name: 'helpdesk', colors: { open: '#fff' } });
+
+      expect(requestBody()).toEqual({ colors: { open: '#fff' } });
+    });
+
     it('validates a lifecycle without saving it', async () => {
       mockFetch.mockReturnValueOnce(mockResponse({ valid: true }));
       await callTool(rt, 'validate_lifecycle', { name: 'helpdesk', initial: ['new'] });
@@ -525,6 +544,18 @@ describe('tool layer', () => {
 
         expect(description).toContain('get_group');
         expect(description).not.toMatch(/cannot be resolved/i);
+      });
+
+      // The description let an AI believe the named lifecycle was being checked.
+      // It is not read at all, so a partial payload is not a partial check: it
+      // is a check of an incomplete lifecycle, and warns about statuses that do
+      // exist.
+      it('validate_lifecycle says the named lifecycle is not consulted', () => {
+        const description = tool('validate_lifecycle').description ?? '';
+
+        expect(description).toMatch(/only the payload/i);
+        expect(description).toMatch(/complete definition/i);
+        expect(description).toContain('get_lifecycle');
       });
 
       // The parameters said "User ID" and "Group ID" for both tools. RT resolves
